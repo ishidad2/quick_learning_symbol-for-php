@@ -1,111 +1,188 @@
 # 3.アカウント
 
-アカウントは秘密鍵に紐づく情報が記録されたデータ構造体です。アカウントと関連づいた秘密鍵を使って署名することでのみブロックチェーンのデータを更新することができます。  
+アカウントは秘密鍵に紐づく情報が記録されたデータ構造体です。アカウントと関連づいた秘密鍵を使って署名することでのみブロックチェーンのデータを更新することができます。
 
 ## 3.1 アカウント生成
 
-アカウントには秘密鍵と公開鍵をセットにしたキーペア、アドレスなどの情報が含まれています。まずはランダムにアカウントを作成して、それらの情報を確認してみましょう。  
+アカウントには秘密鍵と公開鍵をセットにしたキーペア、アドレスなどの情報が含まれています。まずはランダムにアカウントを作成して、それらの情報を確認してみましょう。
 
 ### 新規生成
-```js
-alice = sym.Account.generateNewAccount(networkType);
-console.log(alice);
+
+以下の手順で秘密鍵を作成し、秘密鍵より公開鍵を導出します。
+
+```php
+$aliceKey = $facade->createAccount(PrivateKey::random());
+var_dump($aliceKey);
 ```
 ###### 出力例
-```js
-> Account
-    address: Address {address: 'TBXUTAX6O6EUVPB6X7OBNX6UUXBMPPAFX7KE5TQ', networkType: 152}
-    keyPair: {privateKey: Uint8Array(32), publicKey: Uint8Array(32)}
-```
-
-networkTypeは以下の通りです。
-```js
-{104: 'MAIN_NET', 152: 'TEST_NET'}
+```php
+object(SymbolSdk\Symbol\SymbolAccount)#29 (4) {
+  ["keyPair"]=>
+  object(SymbolSdk\Symbol\KeyPair)#27 (2) {
+    ["_privateKey":"SymbolSdk\Symbol\KeyPair":private]=>
+    object(SymbolSdk\CryptoTypes\PrivateKey)#39 (1) {
+      ["binaryData"]=>
+      string(32) "a �
+���J}�i�h�H�E1=���|��nB�"
+    }
+    ["_keyPair":"SymbolSdk\Symbol\KeyPair":private]=>
+    array(2) {
+      ["publicKey"]=>
+      string(32) "v������z�|���f�*���%�43�1�S�"
+      ["secretKey"]=>
+      string(64) "a �
+���J}�i�h�H�E1=���|��nB�v������z�|���f�*���%�43�1�S�"
+    }
+  }
+  ["_facade":protected]=>
+  object(SymbolSdk\Facade\SymbolFacade)#35 (1) {
+    ["network"]=>
+    object(SymbolSdk\Symbol\Network)#43 (8) {
+      ["generationHashSeed"]=>
+      object(SymbolSdk\CryptoTypes\Hash256)#41 (1) {
+        ["binaryData"]=>
+        string(32) "I���'j����#I�̣�0.z�T��"yIO�e�"
+      }
+      ["name"]=>
+      string(7) "testnet"
+      ["identifier"]=>
+      int(152)
+      ["datetimeConverter"]=>
+      object(SymbolSdk\Network\NetworkTimestampDatetimeConverter)#37 (2) {
+        ["epoch"]=>
+        object(DateTime)#42 (3) {
+          ["date"]=>
+          string(26) "2022-10-31 21:07:47.000000"
+          ["timezone_type"]=>
+          int(2)
+          ["timezone"]=>
+          string(1) "Z"
+        }
+        ["timeUnits"]=>
+        int(1)
+      }
+      ["_addressHasher":protected]=>
+      string(8) "sha3-256"
+      ["_createAddress":protected]=>
+      object(Closure)#38 (2) {
+        ["this"]=>
+        *RECURSION*
+        ["parameter"]=>
+        array(2) {
+          ["$addressWithoutChecksum"]=>
+          string(10) "<required>"
+          ["$checksum"]=>
+          string(10) "<required>"
+        }
+      }
+      ["_addressClass":protected]=>
+      object(ReflectionClass)#21 (1) {
+        ["name"]=>
+        string(24) "SymbolSdk\Symbol\Address"
+      }
+      ["networkTimestampClass"]=>
+      object(ReflectionClass)#40 (1) {
+        ["name"]=>
+        string(33) "SymbolSdk\Symbol\NetworkTimestamp"
+      }
+    }
+  }
+  ["publicKey"]=>
+  object(SymbolSdk\Symbol\Models\PublicKey)#65 (1) {
+    ["binaryData"]=>
+    string(32) "v������z�|���f�*���%�43�1�S�"
+  }
+  ["address"]=>
+  object(SymbolSdk\Symbol\Models\UnresolvedAddress)#66 (1) {
+    ["binaryData"]=>
+    string(24) "��@b����3
+���-��CM�3p�"
+  }
+}
 ```
 
 ### 秘密鍵と公開鍵の導出
-```js
-console.log(alice.privateKey);
-console.log(alice.publicKey);
+```php
+echo  substr($aliceKey->publicKey, 2, 66) . PHP_EOL;
+echo  substr($aliceKey->keyPair->privateKey(), 2, 66) . PHP_EOL;
 ```
+
 ```
-> 1E9139CC1580B4AED6A1FE110085281D4982ED0D89CE07F3380EB83069B1****
-> D4933FC1E4C56F9DF9314E9E0533173E1AB727BDB2A04B59F048124E93BEFBD2
+> 85B1B06DD5EE2A611325287705FA909442969B3C7FF47672B1EC34E9C*******
+> EA648F781721F5094D77149886F18F6B2C2F621B2A3FB8CFA1E382B9E011DFF3
 ```
 
 #### 注意事項
-秘密鍵を紛失するとそのアカウントに紐づけられたデータを操作することが出来なくなります。また、他人は知らないという秘密鍵の性質を利用してデータ操作の署名を行うので、秘密鍵を他人に教えてはいけません。組織のなかで秘密鍵を譲り受けて運用を続けるといった行為も控えましょう。
-一般的なWebサービスでは「アカウントID」に対してパスワードが割り振られるため、パスワードの変更が可能ですが、ブロックチェーンではパスワードにあたる秘密鍵に対して一意に決まるID(アドレス)が割り振られるため、アカウントに紐づく秘密鍵を変更するということはできません。  
-
+秘密鍵を紛失するとそのアカウントに紐づけられたデータを操作することが出来なくなります。また、他人は知らないという秘密鍵の性質を利用してデータ操作の署名を行うので、秘密鍵を他人に教えてはいけません。組織のなかで秘密鍵を譲り受けて運用を続けるといった行為も控えましょう。 一般的な Web サービスでは「アカウント ID」に対してパスワードが割り振られるため、パスワードの変更が可能ですが、ブロックチェーンではパスワードにあたる秘密鍵に対して一意に決まる ID(アドレス)が割り振られるため、アカウントに紐づく秘密鍵を変更するということはできません。
 
 ### アドレスの導出
-```js
-aliceRawAddress = alice.address.plain();
-console.log(aliceRawAddress);
-```
-```js
-> TBXUTAX6O6EUVPB6X7OBNX6UUXBMPPAFX7KE5TQ
+
+```php
+$aliceRawAddress = $aliceKey->address;
+echo $aliceRawAddress . PHP_EOL;
 ```
 
-これらがブロックチェーンを操作するための最も基本的な情報となります。また、秘密鍵からアカウントを生成したり、公開鍵やアドレスのみを扱うクラスの生成方法も確認しておきましょう。  
+```
+> TCTEAYWL2X5PQMYKZD26SLPWUZBRX3KNWMZXBFY
+```
+
+これらがブロックチェーンを操作するための最も基本的な情報となります。また、秘密鍵からアカウントを生成したり、公開鍵やアドレスのみを扱うクラスの生成方法も確認しておきましょう。
 
 ### 秘密鍵からアカウント生成
-```js
-alice = sym.Account.createFromPrivateKey(
-  "1E9139CC1580B4AED6A1FE110085281D4982ED0D89CE07F3380EB83069B1****",
-  networkType
-);
+```php
+
+$aliceKey = new KeyPair(new PrivateKey('85B1B06DD5EE2A611325287705FA909442969B3C7FF47672B1EC34E9C*******'));
+
+$aliceAddress = $facade->network->publicKeyToAddress($aliceKey->publicKey());
 ```
 
 ### 公開鍵クラスの生成
-```js
-alicePublicAccount = sym.PublicAccount.createFromPublicKey(
-  "D4933FC1E4C56F9DF9314E9E0533173E1AB727BDB2A04B59F048124E93BEFBD2",
-  networkType
-);
-console.log(alicePublicAccount);
+```php
+$alicePublicAccount = $facade->createPublicAccount(new PublicKey('EA648F781721F5094D77149886F18F6B2C2F621B2A3FB8CFA1E382B9E011DFF3'));
+
+var_dump($alicePublicAccount->address);
+echo substr($alicePublicAccount->publicKey, 2, 66) . PHP_EOL;
 ```
 ###### 出力例
-```js
-> PublicAccount
-    address: Address {address: 'TBXUTAX6O6EUVPB6X7OBNX6UUXBMPPAFX7KE5TQ', networkType: 152}
-    publicKey: "D4933FC1E4C56F9DF9314E9E0533173E1AB727BDB2A04B59F048124E93BEFBD2"
-
+```php
+object(SymbolSdk\Symbol\Models\UnresolvedAddress)#68 (1) {
+  ["binaryData"]=>
+  string(24) "�o��dOv|����h!峯oZ4~\�"
+}
+EA648F781721F5094D77149886F18F6B2C2F621B2A3FB8CFA1E382B9E011DFF3
 ```
 
 ### アドレスクラスの生成
-```js
-aliceAddress = sym.Address.createFromRawAddress(
-  "TBXUTAX6O6EUVPB6X7OBNX6UUXBMPPAFX7KE5TQ"
-);
-console.log(aliceAddress);
+```php
+$aliceAddress = new Address('TDNX2EJJKC3C4QOGURQZLQS6KJLQACTGWYZFKTQ');
+var_dump($aliceAddress);
 ```
 ###### 出力例
-```js
-> Address
-    address: "TBXUTAX6O6EUVPB6X7OBNX6UUXBMPPAFX7KE5TQ"
-    networkType: 152
+```php
+object(SymbolSdk\Symbol\Address)#29 (1) {
+  ["binaryData"]=>
+  string(24) "��})P�.AƤa��^RW
+f�2UN"
+}
 ```
 
 ## 3.2 アカウントへの送信
 
-アカウントを作成しただけでは、ブロックチェーンにデータを送信することはできません。  
-パブリックブロックチェーンはリソースを有効活用するためにデータ送信時に手数料を要求します。  
-Symbolブロックチェーンでは、この手数料をXYMという共通トークンで支払うことになります。  
-アカウントを生成したら、この後の章から説明するトランザクションを実行するために必要な手数料を送信しておきます。  
+アカウントを作成しただけでは、ブロックチェーンにデータを送信することはできません。
+パブリックブロックチェーンはリソースを有効活用するためにデータ送信時に手数料を要求します。
+Symbol ブロックチェーンでは、この手数料を XYM という共通トークンで支払うことになります。
+アカウントを生成したら、この後の章から説明するトランザクションを実行するために必要な手数料を送信しておきます。
 
 ### フォーセットから送信
 
-テストネットではフォーセット（蛇口）サービスから検証用のXYMを入手することができます。  
-メインネットの場合は取引所などでXYMを購入するか、投げ銭サービス(NEMLOG,QUEST)などを利用して寄付を募りましょう。  
+テストネットではフォーセット（蛇口）サービスから検証用のXYMを入手することができます。
+メインネットの場合は取引所などでXYMを購入するか、投げ銭サービス(QUEST)などを利用して寄付を募りましょう。
 
 テストネット
 - FAUCET(蛇口)
   - https://testnet.symbol.tools/
 
 メインネット
-- NEMLOG
-  - https://nemlog.nem.social/
 - QUEST
   - https://quest-bc.com/
 
@@ -126,64 +203,50 @@ Symbolブロックチェーンでは、この手数料をXYMという共通ト�
 
 ### 所有モザイク一覧の取得
 
-```js
-accountRepo = repo.createAccountRepository();
-accountInfo = await accountRepo.getAccountInfo(aliceAddress).toPromise();
-console.log(accountInfo);
+```php
+$config = new Configuration();
+$config->setHost($NODE_URL);
+$client = new \GuzzleHttp\Client();
+$accountApiInstance = new AccountRoutesApi($client, $config);
+
+$account = $accountApiInstance->getAccountInfo($aliceAddress);
+
+echo "\n===アカウント情報の確認===" . PHP_EOL;
+echo $account . PHP_EOL;
 ```
 ###### 出力例
-```js
-> AccountInfo
-    address: Address {address: 'TBXUTAX6O6EUVPB6X7OBNX6UUXBMPPAFX7KE5TQ', networkType: 152}
-    publicKey: "0000000000000000000000000000000000000000000000000000000000000000"
-  > mosaics: Array(1)
-      0: Mosaic
-        amount: UInt64 {lower: 10000000, higher: 0}
-        id: MosaicId
-          id: Id {lower: 760461000, higher: 981735131}
+```php
+{
+    "id": "669B74CB84E82060AFB8C21B",
+    "account": {
+        "version": 1,
+        "address": "98DB7D112950B62E41C6A46195C25E5257000A66B632554E",
+        "addressHeight": "1591329",
+        "publicKey": "0000000000000000000000000000000000000000000000000000000000000000",
+        "publicKeyHeight": "0",
+        "accountType": 0,
+        "supplementalPublicKeys": {},
+        "activityBuckets": [],
+        "mosaics": [
+            {
+                "id": "72C0212E67A08BCE",
+                "amount": "1000000000"
+            }
+        ],
+        "importance": "0",
+        "importanceHeight": "0"
+    }
+}
 ```
 
 #### publicKey
 クライアント側で作成しただけで、ブロックチェーンでまだ利用されていないアカウント情報は記録されていません。宛先として指定されて受信することで初めてアカウント情報が記録され、署名したトランザクションを送信することで公開鍵の情報が記録されます。そのため、publicKeyは現在`00000...`表記となっています。
 
-#### UInt64
-JavaScriptでは大きすぎる数値はあふれてしまうため、idやamountはUInt64というsdkの独自フォーマットで管理されています。文字列に変換する場合は toString()、数値に変換する場合は compact()、16進数にする場合は toHex() で変換してください。
-
-```js
-console.log("addressHeight:"); //アドレスが記録されたブロック高
-console.log(accountInfo.addressHeight.compact()); //数値
-accountInfo.mosaics.forEach(mosaic => {
-  console.log("id:" + mosaic.id.toHex()); //16進数
-  console.log("amount:" + mosaic.amount.toString()); //文字列
-});
-```
-
-大きすぎるid値をcompactで数値変換するとエラーが発生することがあります。  
-`Compacted value is greater than Number.Max_Value.`
-
-
-#### 表示桁数の調整
-
-所有するトークンの量は誤差の発生を防ぐため、整数値で扱います。トークンの定義から可分性を取得することができるので、その値を使って正確な所有量を表示してみます。  
-
-```js
-mosaicRepo = repo.createMosaicRepository();
-mosaicAmount = accountInfo.mosaics[0].amount.toString();
-mosaicInfo = await mosaicRepo.getMosaic(accountInfo.mosaics[0].id).toPromise();
-divisibility = mosaicInfo.divisibility; //可分性
-if(divisibility > 0){
-  displayAmount = mosaicAmount.slice(0,mosaicAmount.length-divisibility)  
-  + "." + mosaicAmount.slice(-divisibility);
-}else{
-  displayAmount = mosaicAmount;
-}
-console.log(displayAmount);
-```
 
 ## 3.4 現場で使えるヒント
 ### 暗号化と署名
 
-アカウントとして生成した秘密鍵や公開鍵は、そのまま従来の暗号化や電子署名として活用することができます。信頼性に問題点があるアプリケーションを使用する必要がある場合も、個人間（エンドツーエンド）でデータの秘匿性・正当性を検証することができます。  
+アカウントとして生成した秘密鍵や公開鍵は、そのまま従来の暗号化や電子署名として活用することができます。信頼性に問題点があるアプリケーションを使用する必要がある場合も、個人間（エンドツーエンド）でデータの秘匿性・正当性を検証することができます。
 
 #### 事前準備：対話のためのBobアカウントを生成
 ```js
@@ -195,26 +258,38 @@ bobPublicAccount = bob.publicAccount;
 
 Aliceの秘密鍵・Bobの公開鍵で暗号化し、Aliceの公開鍵・Bobの秘密鍵で復号します（AES-GCM形式）。
 
-```js
-message = 'Hello Symol!';
-encryptedMessage = alice.encryptMessage(message ,bob.publicAccount);
-console.log(encryptedMessage);
+```php
+$bobKey = new KeyPair(PrivateKey::random());
+
+$message = "Hello Symbol!";
+$aliceMesgEncoder = new MessageEncoder($aliceKey);
+$encryptedMessage = $aliceMesgEncoder->encode($bobKey->publicKey(), $message);
+echo strtoupper(bin2hex($encryptedMessage)) . PHP_EOL;
 ```
-```js
-> 294C8979156C0D941270BAC191F7C689E93371EDBC36ADD8B920CF494012A97BA2D1A3759F9A6D55D5957E9D
+
+```
+> 0105949FB22EF11566D1E7F3EED230CE73D93D71BFD1AAE19D78315FD4F8028D1D16AC223A8A7E9D5AAB
 ```
 
 #### 復号化
-```js
-decryptMessage = bob.decryptMessage(
-  new sym.EncryptedMessage(
-    "294C8979156C0D941270BAC191F7C689E93371EDBC36ADD8B920CF494012A97BA2D1A3759F9A6D55D5957E9D"
-  ),
-  alice.publicAccount
-).payload
-console.log(decryptMessage);
+```php
+$bobMsgEncoder = new MessageEncoder($bobKey);
+$decryptMessageData = $bobMsgEncoder->tryDecode($aliceKey->publicKey(), $encryptedMessage);
+var_dump($decryptMessageData);
+if($decryptMessageData['isDecoded']){
+    echo "\nDecoded message: " . PHP_EOL;
+    echo $decryptMessageData["message"] . PHP_EOL;
+}else{
+    echo "\nFailed to decode message" . PHP_EOL;
+}
 ```
-```js
+```
+array(2) {
+  ["isDecoded"]=>
+  bool(true)
+  ["message"]=>
+  string(13) "Hello Symbol!"
+}
 > "Hello Symol!"
 ```
 
@@ -222,76 +297,34 @@ console.log(decryptMessage);
 
 Aliceの秘密鍵でメッセージを署名し、Aliceの公開鍵と署名でメッセージを検証します。
 
-```js
-Buffer = require("/node_modules/buffer").Buffer;
-payload = Buffer.from("Hello Symol!", 'utf-8');
-signature = Buffer.from(sym.KeyPair.sign(alice.keyPair, payload)).toString("hex").toUpperCase();
-console.log(signature);
+```php
+$payload = "Hellow Symbol!";
+$signature = $aliceKey->sign($payload);
+echo "\n===署名===" . PHP_EOL;
+echo $signature . PHP_EOL;
 ```
 ```
-> B8A9BCDE9246BB5780A8DED0F4D5DFC80020BBB7360B863EC1F9C62CAFA8686049F39A9F403CB4E66104754A6AEDEF8F6B4AC79E9416DEEDC176FDD24AFEC60E
+> 0x1D37BA4A84CF6161A3659038040BD446AC531F116083847E73795DD7188A512AE03BF5326991A81A5D6A0308662242BD77E767AF8F9B3CCC401CCE765AF17C03
 ```
 
 #### 検証
-```js
-isVerified = sym.KeyPair.verify(
-  alice.keyPair.publicKey,
-  Buffer.from("Hello Symol!", 'utf-8'),
-  Buffer.from(signature, 'hex')
-)
-console.log(isVerified);
+```php
+$v = new Verifier($aliceKey->publicKey());
+$isVerified = $v->verify($payload, $signature);
+echo "alice verified: " . PHP_EOL;
+var_dump($isVerified);
+
+$bobKey = new KeyPair(PrivateKey::random());
+$isVerified = $v->verify($payload, $signature);
+echo "bob verified: " . PHP_EOL;
+var_dump($isVerified);
 ```
 ```js
-> true
+alice verified: 
+bool(true)
+bob verified: 
+bool(true)
 ```
 
 ブロックチェーンを使用しない署名は何度も再利用される可能性があることにご注意ください。
-
-### アカウントの保管
-
-アカウントの管理方法について説明しておきます。  
-秘密鍵はそのままで保存しないようにしてください。symbol-qr-libraryを利用して秘密鍵をパスフレーズで暗号化して保存する方法を紹介します。  
-
-#### 秘密鍵の暗号化
-
-```js
-qr = require("/node_modules/symbol-qr-library");
-
-//パスフレーズでロックされたアカウント生成
-signerQR = qr.QRCodeGenerator.createExportAccount(
-  alice.privateKey, networkType, generationHash, "パスフレーズ"
-);
-
-//QRコード表示
-signerQR.toBase64().subscribe(x =>{
-
-  //HTML body上にQRコードを表示する例
-  (tag= document.createElement('img')).src = x;
-  document.getElementsByTagName('body')[0].appendChild(tag);
-});
-
-//アカウントを暗号化したJSONデータとして表示
-jsonSignerQR = signerQR.toJSON();
-console.log(jsonSignerQR);
-```
-###### 出力例
-```js
-> {"v":3,"type":2,"network_id":152,"chain_id":"7FCCD304802016BEBBCD342A332F91FF1F3BB5E902988B352697BE245F48E836","data":{"ciphertext":"e9e2f76cb482fd054bc13b7ca7c9d086E7VxeGS/N8n1WGTc5MwshNMxUiOpSV2CNagtc6dDZ7rVZcnHXrrESS06CtDTLdD7qrNZEZAi166ucDUgk4Yst0P/XJfesCpXRxlzzNgcK8Q=","salt":"54de9318a44cc8990e01baba1bcb92fa111d5bcc0b02ffc6544d2816989dc0e9"}}
-```
-このjsonSignerQRで出力されるQRコード、あるいはテキストを保存しておけばいつでも秘密鍵を復元することができます。
-
-#### 暗号化された秘密鍵の復号
-
-```js
-//保存しておいたテキスト、あるいはQRコードスキャンで得られたテキストをjsonSignerQRに代入
-jsonSignerQR = '{"v":3,"type":2,"network_id":152,"chain_id":"7FCCD304802016BEBBCD342A332F91FF1F3BB5E902988B352697BE245F48E836","data":{"ciphertext":"e9e2f76cb482fd054bc13b7ca7c9d086E7VxeGS/N8n1WGTc5MwshNMxUiOpSV2CNagtc6dDZ7rVZcnHXrrESS06CtDTLdD7qrNZEZAi166ucDUgk4Yst0P/XJfesCpXRxlzzNgcK8Q=","salt":"54de9318a44cc8990e01baba1bcb92fa111d5bcc0b02ffc6544d2816989dc0e9"}}';
-
-qr = require("/node_modules/symbol-qr-library");
-signerQR = qr.AccountQR.fromJSON(jsonSignerQR,"パスフレーズ");
-console.log(signerQR.accountPrivateKey);
-```
-###### 出力例
-```js
-> 1E9139CC1580B4AED6A1FE110085281D4982ED0D89CE07F3380EB83069B1****
-```
 
