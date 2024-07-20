@@ -1,0 +1,6 @@
+{
+    "require": {
+        "symbol-blockchain-community/symbol-sdk": "*",
+        "symbol-blockchain-community/symbol-rest-client": "*"
+    }
+}

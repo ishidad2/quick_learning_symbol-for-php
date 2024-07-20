@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./:/work
+    working_dir: /work
+    tty: true
+    environment:
+      - TZ=Asia/Tokyo
+
+volumes:
+  db-store:
