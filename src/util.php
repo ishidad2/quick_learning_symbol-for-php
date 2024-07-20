@@ -1,7 +1,8 @@
 <?php
-use SymbolRestClient\Api\NodeRoutesApi;
 require_once(__DIR__ . '/vendor/autoload.php');
+require_once(__DIR__ . '/env.php');
 
+use SymbolRestClient\Api\NodeRoutesApi;
 use SymbolRestClient\Api\NetworkRoutesApi;
 use SymbolRestClient\Configuration;
 use SymbolSdk\Facade\SymbolFacade;
