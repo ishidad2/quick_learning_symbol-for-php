@@ -6,7 +6,7 @@ WORKDIR /work
 RUN apt-get update && apt-get install -y \
         libzip-dev \
         unzip \
-    && docker-php-ext-install zip
+    && docker-php-ext-install zip bcmath
 
 # Composerのインストール
 RUN cd /usr/bin && curl -s http://getcomposer.org/installer | php && ln -s /usr/bin/composer.phar /usr/bin/composer
