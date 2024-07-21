@@ -249,9 +249,8 @@ echo $account . PHP_EOL;
 アカウントとして生成した秘密鍵や公開鍵は、そのまま従来の暗号化や電子署名として活用することができます。信頼性に問題点があるアプリケーションを使用する必要がある場合も、個人間（エンドツーエンド）でデータの秘匿性・正当性を検証することができます。
 
 #### 事前準備：対話のためのBobアカウントを生成
-```js
-bob = sym.Account.generateNewAccount(networkType);
-bobPublicAccount = bob.publicAccount;
+```php
+$bobKey = new KeyPair(PrivateKey::random());
 ```
 
 #### 暗号化
@@ -271,7 +270,7 @@ echo strtoupper(bin2hex($encryptedMessage)) . PHP_EOL;
 > 0105949FB22EF11566D1E7F3EED230CE73D93D71BFD1AAE19D78315FD4F8028D1D16AC223A8A7E9D5AAB
 ```
 
-#### 復号化
+#### 復号
 ```php
 $bobMsgEncoder = new MessageEncoder($bobKey);
 $decryptMessageData = $bobMsgEncoder->tryDecode($aliceKey->publicKey(), $encryptedMessage);
