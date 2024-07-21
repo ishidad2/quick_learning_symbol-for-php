@@ -117,6 +117,7 @@ echo "alice verified: " . PHP_EOL;
 var_dump($isVerified);
 
 $bobKey = new KeyPair(PrivateKey::random());
+$v = new Verifier($bobKey->publicKey());
 $isVerified = $v->verify($payload, $signature);
 echo "bob verified: " . PHP_EOL;
 var_dump($isVerified);

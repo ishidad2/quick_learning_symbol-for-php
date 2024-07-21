@@ -315,15 +315,16 @@ echo "alice verified: " . PHP_EOL;
 var_dump($isVerified);
 
 $bobKey = new KeyPair(PrivateKey::random());
+$v = new Verifier($bobKey->publicKey());
 $isVerified = $v->verify($payload, $signature);
 echo "bob verified: " . PHP_EOL;
 var_dump($isVerified);
 ```
-```js
-alice verified: 
+```
+alice verified:
 bool(true)
-bob verified: 
-bool(true)
+bob verified:
+bool(false)
 ```
 
 ブロックチェーンを使用しない署名は何度も再利用される可能性があることにご注意ください。
