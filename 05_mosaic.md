@@ -7,26 +7,30 @@ Symbolではトークンのことをモザイクと表現します。
 
 ## 5.1 モザイク生成
 
-モザイク生成には
-作成するモザイクを定義します。
-```js
-supplyMutable = true; //供給量変更の可否
-transferable = false; //第三者への譲渡可否
-restrictable = true; //制限設定の可否
-revokable = true; //発行者からの還収可否
+モザイク生成には作成するモザイクを定義します。
 
-//モザイク定義
-nonce = sym.MosaicNonce.createRandom();
-mosaicDefTx = sym.MosaicDefinitionTransaction.create(
-    undefined, 
-    nonce,
-    sym.MosaicId.createFromNonce(nonce, alice.address), //モザイクID
-    sym.MosaicFlags.create(supplyMutable, transferable, restrictable, revokable),
-    2,//divisibility:可分性
-    sym.UInt64.fromUint(0), //duration:有効期限
-    networkType
+```php
+$f = MosaicFlags::NONE;
+$f += MosaicFlags::SUPPLY_MUTABLE; // 供給量変更可能
+// $f += MosaicFlags::TRANSFERABLE; // 第三者への譲渡可否
+$f += MosaicFlags::RESTRICTABLE; //制限設定の可否
+$f += MosaicFlags::REVOKABLE; //発行者からの還収可否
+$flags = new MosaicFlags($f);
+
+$mosaicId = IdGenerator::generateMosaicId($aliceKey->address);
+
+// モザイク定義
+$mosaicDefTx = new EmbeddedMosaicDefinitionTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey, // 署名者公開鍵
+  id: new MosaicId($mosaicId['id']), // モザイクID
+  divisibility: 2, // 分割可能性
+  duration: new BlockDuration(0), //duration:有効期限
+  nonce: new MosaicNonce($mosaicId['nonce']),
+  flags: $flags,
 );
 ```
+※AggregateTransaction の Inner Transaction クラスは全て Embedded がつきます。
 
 MosaicFlagsは以下の通りです。
 
@@ -42,9 +46,9 @@ MosaicFlags {
 
 可分性は小数点第何位まで数量の単位とするかを決めます。データは整数値として保持されます。
 
-divisibility:0 = 1  
-divisibility:1 = 1.0  
-divisibility:2 = 1.00  
+divisibility:0 = 1
+divisibility:1 = 1.0
+divisibility:2 = 1.00
 
 #### duration:有効期限
 
@@ -54,72 +58,123 @@ divisibility:2 = 1.00
 
 
 次に数量を変更します
-```js
+```php
 //モザイク変更
-mosaicChangeTx = sym.MosaicSupplyChangeTransaction.create(
-    undefined,
-    mosaicDefTx.mosaicId,
-    sym.MosaicSupplyChangeAction.Increase,
-    sym.UInt64.fromUint(1000000), //数量
-    networkType
+$mosaicChangeTx = new EmbeddedMosaicSupplyChangeTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey, // 署名者公開鍵
+  mosaicId: new UnresolvedMosaicId($mosaicId['id']),
+  delta: new Amount(10000),
+  action: new MosaicSupplyChangeAction(MosaicSupplyChangeAction::INCREASE),
 );
 ```
+※AggregateTransaction の Inner Transaction クラスは全て Embedded がつきます。
+
 supplyMutable:falseの場合、全モザイクが発行者にある場合だけ数量の変更が可能です。
 divisibility > 0 の場合は、最小単位を1として整数値で定義してください。
 （divisibility:2 で 1.00 作成したい場合は100と指定）
 
 MosaicSupplyChangeActionは以下の通りです。
 ```js
-{0: 'Decrease', 1: 'Increase'}
+{0: 'DECREASE', 1: 'INCREASE'}
 ```
 増やしたい場合はIncreaseを指定します。
 上記2つのトランザクションをまとめてアグリゲートトランザクションを作成します。
 
-```js
-aggregateTx = sym.AggregateTransaction.createComplete(
-    sym.Deadline.create(epochAdjustment),
-    [
-      mosaicDefTx.toAggregate(alice.publicAccount),
-      mosaicChangeTx.toAggregate(alice.publicAccount),
-    ],
-    networkType,[],
-).setMaxFeeForAggregate(100, 0);
+```php
+// マークルハッシュの算出
+$embeddedTransactions = [$mosaicDefTx, $mosaicChangeTx];
+$merkleHash = $facade->hashEmbeddedTransactions($embeddedTransactions);
 
-signedTx = alice.sign(aggregateTx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+// アグリゲートTx作成
+$aggregateTx = new AggregateCompleteTransactionV2(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  transactionsHash: $merkleHash,
+  transactions: $embeddedTransactions
+);
+$facade->setMaxFee($aggregateTx, 100);  // 手数料
+
+// 署名
+$sig = $aliceKey->signTransaction($aggregateTx);
+$payload = $facade->attachSignature($aggregateTx, $sig);
+
+/**
+ * アナウンス
+ */
+$config = new Configuration();
+$config->setHost($NODE_URL);
+$client = new GuzzleHttp\Client();
+$apiInstance = new TransactionRoutesApi($client, $config);
+
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 
-アグリゲートトランザクションの特徴として、
-まだ存在していないモザイクの数量を変更しようとしている点に注目してください。
+アグリゲートトランザクションの特徴として、まだ存在していないモザイクの数量を変更しようとしている点に注目してください。
 配列化した時に、矛盾点がなければ1つのブロック内で問題なく処理することができます。
 
 
 ### 確認
 モザイク作成したアカウントが持つモザイク情報を確認します。
 
-```js
-mosaicRepo = repo.createMosaicRepository();
-accountInfo.mosaics.forEach(async mosaic => {
-  mosaicInfo = await mosaicRepo.getMosaic(mosaic.id).toPromise();
-  console.log(mosaicInfo);
-});
+```php
+// 3.3 アカウント情報の確認 - 所有モザイク一覧の取得 を事前に実施する
+$accountApiInstance = new AccountRoutesApi($client, $config);
+$mosaicApiInstance = new MosaicRoutesApi($client, $config);
+
+$account = $accountApiInstance->getAccountInfo($aliceKey->address);
+foreach($account->getAccount()->getMosaics() as $mosaic) {
+  $mocaisInfo = $mosaicApiInstance->getMosaic($mosaic->getId());
+  echo "\n===モザイク情報===" . PHP_EOL;
+  var_dump($mocaisInfo);
+}
 ```
 ###### 出力例
-```js
-> MosaicInfo {version: 1, recordId: '622988B12A6128903FC10496', id: MosaicId, supply: UInt64, startHeight: UInt64, …}
-> MosaicInfo
-    divisibility: 2 //可分性
-    duration: UInt64 {lower: 0, higher: 0} //有効期限
-  > flags: MosaicFlags
-        restrictable: true //制限設定の可否
-        revokable: true //発行者からの還収可否
-        supplyMutable: true //供給量変更の可否
-        transferable: false //第三者への譲渡可否
-  > id: MosaicId
-        id: Id {lower: 207493124, higher: 890137608} //モザイクID
-    ownerAddress: Address {address: 'TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ', networkType: 152} //作成者アドレス
-    recordId: "62626E3C741381859AFAD4D5" 
-    supply: UInt64 {lower: 1000000, higher: 0} //供給量
+```php
+===モザイク情報===
+object(SymbolRestClient\Model\MosaicInfoDTO)#131 (2) {
+  ["openAPINullablesSetToNull":protected]=>
+  array(0) {
+  }
+  ["container":protected]=>
+  array(2) {
+    ["id"]=>
+    string(24) "669E4D9884E82060AFBD9C2E"
+    ["mosaic"]=>
+    object(SymbolRestClient\Model\MosaicDTO)#121 (2) {
+      ["openAPINullablesSetToNull":protected]=>
+      array(0) {
+      }
+      ["container":protected]=>
+      array(9) {
+        ["version"]=>
+        int(1)
+        ["id"]=>
+        string(16) "12679808DC2A1493"
+        ["supply"]=>
+        string(5) "10000"
+        ["start_height"]=>
+        string(7) "1596556"
+        ["owner_address"]=>
+        string(48) "98E521BD0F024F58E670A023BF3A14F3BECAF0280396BED0"
+        ["revision"]=>
+        int(1)
+        ["flags"]=>
+        int(13)
+        ["divisibility"]=>
+        int(2)
+        ["duration"]=>
+        string(1) "0"
+      }
+    }
+  }
+}
 ```
 
 ## 5.2 モザイク送信
@@ -130,33 +185,38 @@ accountInfo.mosaics.forEach(async mosaic => {
 モザイク情報はすべてのノードで常に共有・同期化されており、送信先に未知のモザイク情報を届けることではありません。
 正確にはブロックチェーンへ「トランザクションを送信」することにより、アカウント間でのトークン残量を組み替える操作のことを言います。
 
-```js
-//受信アカウント作成
-bob = sym.Account.generateNewAccount(networkType);
+```php
+// 受信アカウント作成
+$bobKey = $facade->createAccount(PrivateKey::random());
+$bobAddress = $bobKey->address;
 
-tx = sym.TransferTransaction.create(
-    sym.Deadline.create(epochAdjustment),
-    bob.address,  //送信先アドレス
-    // 送信モザイクリスト
-    [ 
-      new sym.Mosaic(
-        new sym.MosaicId("72C0212E67A08BCE"), //テストネットXYM
-        sym.UInt64.fromUint(1000000) //1XYM(divisibility:6)
-      ),
-      new sym.Mosaic(
-        mosaicDefTx.mosaicId, // 5.1 で作成したモザイク
-        sym.UInt64.fromUint(1)  // 数量:0.01(divisibility:2 の場合)
-      )
-    ],
-    sym.EmptyMessage,
-    networkType
-).setMaxFee(100);
-signedTx = alice.sign(tx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+$tx = new TransferTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,  // 署名者公開鍵
+  recipientAddress: $bobAddress,  // 受信者アドレス
+  mosaics: [
+    new UnresolvedMosaic(
+      mosaicId: new UnresolvedMosaicId("0x12679808DC2A1493"),  //5.1で作成したモザイクID
+      amount: new Amount(100) //過分性が2のため、100を指定することで送信量が1モザイクとなる
+    )
+  ],
+  message: "\0モザイク送信",
+  deadline: new Timestamp($facade->now()->addHours(2)),
+);
+$facade->setMaxFee($tx, 100); // 手数料
+
+// 署名とアナウンス
+$sig = $aliceKey->signTransaction($tx);
+$payload = $facade->attachSignature($tx, $sig);
+
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 
 ```
-
-
 
 ##### 送信モザイクリスト
 
@@ -171,38 +231,200 @@ XYMは可分性6なので、1XYM=1000000で指定します。
 
 ### 送信確認
 
-```js
-txInfo = await txRepo.getTransaction(signedTx.hash,sym.TransactionGroup.Confirmed).toPromise();
-console.log(txInfo); 
+```php
+$txInfo = $apiInstance->getConfirmedTransaction(
+  $hash  // 送信トランザクションのハッシュ
+);
 ```
 ###### 出力例
-```js
-> TransferTransaction
-    deadline: Deadline {adjustedValue: 12776690385}
-    maxFee: UInt64 {lower: 19200, higher: 0}
-    message: RawMessage {type: -1, payload: ''}
-  > mosaics: Array(2)
-      > 0: Mosaic
-            amount: UInt64 {lower: 1, higher: 0}
-          > id: MosaicId
-                id: Id {lower: 207493124, higher: 890137608}
-      > 1: Mosaic
-            amount: UInt64 {lower: 1000000, higher: 0}
-          > id: MosaicId
-                id: Id {lower: 760461000, higher: 981735131}
-    networkType: 152
-    payloadSize: 192
-    recipientAddress: Address {address: 'TAR6ERCSTDJJ7KCN4BJNJTK7LBBL5JPPVSHUNGY', networkType: 152}
-    signature: "7C4E9E80D250C6D09352FB8EC80175719D59787DE67446896A73AABCFE6C420AF7DD707E6D4D2B2987B8BAD775F2989DCB6F738D39C48C1239FC8CC900A6740D"
-    signer: PublicAccount {publicKey: '0E5C72B0D5946C1EFEE7E5317C5985F106B739BB0BC07E4F9A288417B3CD6D26', address: Address}
-  > transactionInfo: TransactionInfo
-        hash: "DE479C001E9736976BDA55E560AB1A5DE526236D9E1BCE24941CF8ED8884289E"
-        height: UInt64 {lower: 326922, higher: 0}
-        id: "626270069F1D5202A10AE93E"
-        index: 0
-        merkleComponentHash: "DE479C001E9736976BDA55E560AB1A5DE526236D9E1BCE24941CF8ED8884289E"
-    type: 16724
-    version: 1
+```php
+object(SymbolRestClient\Model\TransactionInfoDTO)#127 (2) {
+  ["openAPINullablesSetToNull":protected]=>
+  array(0) {
+  }
+  ["container":protected]=>
+  array(3) {
+    ["id"]=>
+    string(24) "669E5AAB527B051AC20A7DA6"
+    ["meta"]=>
+    object(SymbolRestClient\Model\TransactionInfoDTOMeta)#120 (2) {
+      ["openAPINullablesSetToNull":protected]=>
+      array(0) {
+      }
+      ["container":protected]=>
+      array(8) {
+        ["height"]=>
+        string(7) "1596649"
+        ["hash"]=>
+        string(64) "2781E0DD5346405AC7B5CEC0DF6C8A52D164C86F9D75BA024ED8824E6B516F2F"
+        ["merkle_component_hash"]=>
+        string(64) "2781E0DD5346405AC7B5CEC0DF6C8A52D164C86F9D75BA024ED8824E6B516F2F"
+        ["index"]=>
+        int(0)
+        ["timestamp"]=>
+        string(11) "54403463949"
+        ["fee_multiplier"]=>
+        int(100)
+        ["aggregate_hash"]=>
+        NULL
+        ["aggregate_id"]=>
+        NULL
+      }
+    }
+    ["transaction"]=>
+    object(SymbolRestClient\Model\TransactionInfoDTOTransaction)#138 (2) {
+      ["openAPINullablesSetToNull":protected]=>
+      array(0) {
+      }
+      ["container":protected]=>
+      array(58) {
+        ["size"]=>
+        int(211)
+        ["signature"]=>
+        string(128) "6467909E4563D3BDF83400FD955D0F5CCE3CAAC7E9D9CB35037CDF4DE4BE2857CEAB9ED120BB38882076B8DC13E9F11E270A05821663B71D38E1696A5CA60C06"
+        ["signer_public_key"]=>
+        string(64) "25189135BF2307DCBCD1657A34ABC3FDEEC04A126D4572876BCA4F514DB5AC9B"
+        ["version"]=>
+        int(1)
+        ["network"]=>
+        int(152)
+        ["type"]=>
+        int(16724)
+        ["max_fee"]=>
+        string(5) "21100"
+        ["deadline"]=>
+        string(11) "54410638989"
+        ["linked_public_key"]=>
+        NULL
+        ["link_action"]=>
+        NULL
+        ["start_epoch"]=>
+        NULL
+        ["end_epoch"]=>
+        NULL
+        ["transactions_hash"]=>
+        NULL
+        ["cosignatures"]=>
+        NULL
+        ["transactions"]=>
+        NULL
+        ["mosaic_id"]=>
+        NULL
+        ["amount"]=>
+        NULL
+        ["duration"]=>
+        NULL
+        ["hash"]=>
+        NULL
+        ["recipient_address"]=>
+        string(48) "98387B89DFD6F53C8FC960A509392E527278E1C71CDAAF74"
+        ["secret"]=>
+        NULL
+        ["hash_algorithm"]=>
+        NULL
+        ["proof"]=>
+        NULL
+        ["target_address"]=>
+        NULL
+        ["scoped_metadata_key"]=>
+        NULL
+        ["value_size_delta"]=>
+        NULL
+        ["value_size"]=>
+        NULL
+        ["value"]=>
+        NULL
+        ["target_mosaic_id"]=>
+        NULL
+        ["target_namespace_id"]=>
+        NULL
+        ["id"]=>
+        NULL
+        ["nonce"]=>
+        NULL
+        ["flags"]=>
+        NULL
+        ["divisibility"]=>
+        NULL
+        ["delta"]=>
+        NULL
+        ["action"]=>
+        NULL
+        ["source_address"]=>
+        NULL
+        ["parent_id"]=>
+        NULL
+        ["registration_type"]=>
+        NULL
+        ["name"]=>
+        NULL
+        ["namespace_id"]=>
+        NULL
+        ["address"]=>
+        NULL
+        ["alias_action"]=>
+        NULL
+        ["min_removal_delta"]=>
+        NULL
+        ["min_approval_delta"]=>
+        NULL
+        ["address_additions"]=>
+        NULL
+        ["address_deletions"]=>
+        NULL
+        ["restriction_flags"]=>
+        NULL
+        ["restriction_additions"]=>
+        NULL
+        ["restriction_deletions"]=>
+        NULL
+        ["reference_mosaic_id"]=>
+        NULL
+        ["restriction_key"]=>
+        NULL
+        ["previous_restriction_value"]=>
+        NULL
+        ["new_restriction_value"]=>
+        NULL
+        ["previous_restriction_type"]=>
+        NULL
+        ["new_restriction_type"]=>
+        NULL
+        ["mosaics"]=>
+        array(2) {
+          [0]=>
+          object(SymbolRestClient\Model\UnresolvedMosaic)#139 (2) {
+            ["openAPINullablesSetToNull":protected]=>
+            array(0) {
+            }
+            ["container":protected]=>
+            array(2) {
+              ["id"]=>
+              string(16) "12679808DC2A1493"
+              ["amount"]=>
+              string(3) "100"
+            }
+          }
+          [1]=>
+          object(SymbolRestClient\Model\UnresolvedMosaic)#140 (2) {
+            ["openAPINullablesSetToNull":protected]=>
+            array(0) {
+            }
+            ["container":protected]=>
+            array(2) {
+              ["id"]=>
+              string(16) "72C0212E67A08BCE"
+              ["amount"]=>
+              string(7) "1000000"
+            }
+          }
+        }
+        ["message"]=>
+        string(38) "00E383A2E382B6E382A4E382AFE98081E4BFA1"
+      }
+    }
+  }
+}
 ```
 TransferTransactionのmosaicsに2種類のモザイクが送信されていることが確認できます。また、TransactionInfoに承認されたブロックの情報が記載されています。
 
@@ -223,46 +445,73 @@ TransferTransactionのmosaicsに2種類のモザイクが送信されている�
 7章で説明するメタデータをモザイクに登録する方法もありますが、その方法は登録アカウントとモザイク作成者の連署によって更新可能なことにご注意ください。
 
 NFTの実現方法はいろいろありますが、その一例の処理概要を以下に例示します（実行するためにはnonceやフラグ情報を適切に設定してください）。
-```js
-supplyMutable = false; //供給量変更の可否
+```php
+$f = MosaicFlags::NONE;
+// $f += MosaicFlags::SUPPLY_MUTABLE; // 供給量変更可能
+$f += MosaicFlags::TRANSFERABLE; // 第三者への譲渡可否
+$f += MosaicFlags::RESTRICTABLE; //制限設定の可否
+$f += MosaicFlags::REVOKABLE; //発行者からの還収可否
+$flags = new MosaicFlags($f);
 
-//モザイク定義
-mosaicDefTx = sym.MosaicDefinitionTransaction.create(
-    undefined, nonce,mosaicId,
-    sym.MosaicFlags.create(supplyMutable, transferable, restrictable, revokable),
-    0,//divisibility:可分性
-    sym.UInt64.fromUint(0), //duration:無期限
-    networkType
+$mosaicId = IdGenerator::generateMosaicId($aliceKey->address);
+
+// モザイク定義
+$mosaicDefTx = new EmbeddedMosaicDefinitionTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey, // 署名者公開鍵
+  id: new MosaicId($mosaicId['id']), // モザイクID
+  divisibility: 0, // 分割可能性
+  duration: new BlockDuration(0), //duration:有効期限
+  nonce: new MosaicNonce($mosaicId['nonce']),
+  flags: $flags,
 );
 
-//モザイク数量固定
-mosaicChangeTx = sym.MosaicSupplyChangeTransaction.create(
-    undefined,mosaicId,
-    sym.MosaicSupplyChangeAction.Increase, //増やす
-    sym.UInt64.fromUint(1), //数量1
-    networkType
+//モザイク変更
+$mosaicChangeTx = new EmbeddedMosaicSupplyChangeTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey, // 署名者公開鍵
+  mosaicId: new UnresolvedMosaicId($mosaicId['id']),
+  delta: new Amount(1),
+  action: new MosaicSupplyChangeAction(MosaicSupplyChangeAction::INCREASE),
 );
 
 //NFTデータ
-nftTx  = sym.TransferTransaction.create(
-    undefined, //Deadline:有効期限
-    alice.address, 
-    [],
-    sym.PlainMessage.create("Hello Symbol!"), //NFTデータ実体
-    networkType
-)
+$nftTx = new EmbeddedTransferTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,  // 署名者公開鍵
+  recipientAddress: $bobAddress,  // 受信者アドレス
+  message: "\0NFT送信", //NFTデータ実態
+);
 
-//モザイクの生成とNFTデータをアグリゲートしてブロックに登録
-aggregateTx = sym.AggregateTransaction.createComplete(
-    sym.Deadline.create(epochAdjustment),
-    [
-      mosaicDefTx.toAggregate(alice.publicAccount),
-      mosaicChangeTx.toAggregate(alice.publicAccount),
-      nftTx.toAggregate(alice.publicAccount)
-    ],
-    networkType,[],
-).setMaxFeeForAggregate(100, 0);
+// マークルハッシュの算出
+$embeddedTransactions = [$mosaicDefTx, $mosaicChangeTx, $nftTx];
+$merkleHash = $facade->hashEmbeddedTransactions($embeddedTransactions);
+
+// モザイクの生成とNFTデータをアグリゲートしてブロックに登録
+$aggregateTx = new AggregateCompleteTransactionV2(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  transactionsHash: $merkleHash,
+  transactions: $embeddedTransactions
+);
+$facade->setMaxFee($aggregateTx, 100);  // 手数料
+
+// 署名
+$sig = $aliceKey->signTransaction($aggregateTx);
+$payload = $facade->attachSignature($aggregateTx, $sig);
+
+/**
+ * アナウンス
+ */
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
+※AggregateTransaction の Inner Transaction クラスは全て Embedded がつくので EmbeddedTransferTransactionV1 を使用します。
 
 モザイク生成時のブロック高と作成アカウントがモザイク情報に含まれているので同ブロック内のトランザクションを検索することにより、
 紐づけられたNFTデータを取得することができます。
@@ -278,20 +527,30 @@ NFTを運用する場合はモザイク作成者の秘密鍵を厳重に管理�
 transferableをfalseに設定することで転売が制限されるため、資金決済法の影響を受けにくいポイントを定義することができます。
 またrevokableをtrueに設定することで、ユーザ側が秘密鍵を管理しなくても使用分を回収できるような中央管理型のポイント運用を行うことができます。
 
-```js
-transferable = false; //第三者への譲渡可否
-revokable = true; //発行者からの還収可否
+```php
+$f = MosaicFlags::NONE;
+$f += MosaicFlags::SUPPLY_MUTABLE; // 供給量変更可能
+// $f += MosaicFlags::TRANSFERABLE; // 第三者への譲渡可否
+$f += MosaicFlags::RESTRICTABLE; //制限設定の可否
+$f += MosaicFlags::REVOKABLE; //発行者からの還収可否
+$flags = new MosaicFlags($f);
 ```
 
 トランザクションは以下のように記述します。
 
 ```js
-revocationTx = sym.MosaicSupplyRevocationTransaction.create(
-    sym.Deadline.create(epochAdjustment),
-    bob.address, //回収先アドレス
-    new sym.Mosaic(mosaicId, sym.UInt64.fromUint(3)), //回収モザイクIDと数量
-    networkType
-).setMaxFee(100);
+$revocationTx = new MosaicSupplyRevocationTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  mosaic: new UnresolvedMosaic(
+    mosaicId: new UnresolvedMosaicId("0x12679808DC2A1493"),  //5.1で作成したモザイクID
+    amount: new Amount(100) //過分性が2のため、100を指定することで送信量が1モザイクとなる
+  ),
+  sourceAddress: new UnresolvedAddress("TDZ46RYMP6XTRQLOGI3AWULOHV56LBUE7M43MCI"), //回収ターゲット
+);
+$facade->setMaxFee($revocationTx, 100); // 手数料
+
 ```
 
 
