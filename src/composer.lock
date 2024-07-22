@@ -596,16 +596,16 @@
         },
         {
             "name": "symbol-blockchain-community/symbol-sdk",
-            "version": "v1.0.4",
+            "version": "v1.0.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symbol-blockchain-community/symbol-sdk-php.git",
-                "reference": "c9996ee23336789c4fb46594d77972101181d0dd"
+                "reference": "321a20a2bad912d95201f9556ec3818d52ab28da"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symbol-blockchain-community/symbol-sdk-php/zipball/c9996ee23336789c4fb46594d77972101181d0dd",
-                "reference": "c9996ee23336789c4fb46594d77972101181d0dd",
+                "url": "https://api.github.com/repos/symbol-blockchain-community/symbol-sdk-php/zipball/321a20a2bad912d95201f9556ec3818d52ab28da",
+                "reference": "321a20a2bad912d95201f9556ec3818d52ab28da",
                 "shasum": ""
             },
             "require": {
@@ -639,7 +639,7 @@
                 "issues": "https://github.com/symbol-blockchain-community/symbol-sdk-php/issues",
                 "source": "https://github.com/symbol-blockchain-community/symbol-sdk-php/tree/v1.0.5"
             },
-            "time": "2024-07-21T03:54:19+00:00"
+            "time": "2024-07-22T03:24:04+00:00"
         },
         {
             "name": "symfony/deprecation-contracts",
