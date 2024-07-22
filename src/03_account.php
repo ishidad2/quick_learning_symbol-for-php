@@ -23,9 +23,8 @@ var_dump($aliceKey);
  */
 
 echo  "===秘密鍵と公開鍵の導出===" . PHP_EOL;
-// 先頭0xを除いたアドレス
-echo  substr($aliceKey->publicKey, 2, 66) . PHP_EOL;
-echo  substr($aliceKey->keyPair->privateKey(), 2, 66) . PHP_EOL;
+echo  $aliceKey->publicKey. PHP_EOL;
+echo  $aliceKey->keyPair->privateKey(). PHP_EOL;
 
 
 /**
@@ -38,9 +37,10 @@ echo $aliceRawAddress . PHP_EOL;
 /**
  * 秘密鍵からアカウント生成
  */
-$aliceKey = new KeyPair(new PrivateKey($alicePrivateKey));
-
-$aliceAddress = $facade->network->publicKeyToAddress($aliceKey->publicKey());
+$aliceKey = $facade->createAccount(new PrivateKey($alicePrivateKey));
+$aliceRawAddress = $aliceKey->address;
+echo "\n===秘密鍵からアカウント生成===" . PHP_EOL;
+echo $aliceRawAddress . PHP_EOL;
 
 /**
  * 公開鍵クラスの生成
@@ -82,15 +82,14 @@ echo $account . PHP_EOL;
 $bobKey = new KeyPair(PrivateKey::random());
 
 $message = "Hello Symbol!";
-$aliceMesgEncoder = new MessageEncoder($aliceKey);
-$encryptedMessage = $aliceMesgEncoder->encode($bobKey->publicKey(), $message);
+$encryptedMessage = $aliceKey->messageEncoder()->encode($bobKey->publicKey(), $message);
 echo strtoupper(bin2hex($encryptedMessage)) . PHP_EOL;
 
 /**
  * 暗号化
  */
 $bobMsgEncoder = new MessageEncoder($bobKey);
-$decryptMessageData = $bobMsgEncoder->tryDecode($aliceKey->publicKey(), $encryptedMessage);
+$decryptMessageData = $bobMsgEncoder->tryDecode($aliceKey->keyPair->publicKey(), $encryptedMessage);
 var_dump($decryptMessageData);
 if($decryptMessageData['isDecoded']){
     echo "\nDecoded message: " . PHP_EOL;
@@ -103,7 +102,7 @@ if($decryptMessageData['isDecoded']){
  * 署名
  */
 $payload = "Hellow Symbol!";
-$signature = $aliceKey->sign($payload);
+$signature = $aliceKey->keyPair->sign($payload);
 echo "\n===署名===" . PHP_EOL;
 echo $signature . PHP_EOL;
 
@@ -111,7 +110,7 @@ echo $signature . PHP_EOL;
  * 検証
  */
 echo "\n===検証===" . PHP_EOL;
-$v = new Verifier($aliceKey->publicKey());
+$v = new Verifier($aliceKey->keyPair->publicKey());
 $isVerified = $v->verify($payload, $signature);
 echo "alice verified: " . PHP_EOL;
 var_dump($isVerified);

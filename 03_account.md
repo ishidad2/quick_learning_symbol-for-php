@@ -103,8 +103,8 @@ object(SymbolSdk\Symbol\SymbolAccount)#29 (4) {
 
 ### 秘密鍵と公開鍵の導出
 ```php
-echo  substr($aliceKey->publicKey, 2, 66) . PHP_EOL;
-echo  substr($aliceKey->keyPair->privateKey(), 2, 66) . PHP_EOL;
+echo  $aliceKey->publicKey. PHP_EOL;
+echo  $aliceKey->keyPair->privateKey(). PHP_EOL;
 ```
 
 ```
@@ -131,9 +131,14 @@ echo $aliceRawAddress . PHP_EOL;
 ### 秘密鍵からアカウント生成
 ```php
 
-$aliceKey = new KeyPair(new PrivateKey('85B1B06DD5EE2A611325287705FA909442969B3C7FF47672B1EC34E9C*******'));
+$aliceKey = $facade->createAccount(new PrivateKey('85B1B06DD5EE2A611325287705FA909442969B3C7FF47672B1EC34E9C*******'));
 
-$aliceAddress = $facade->network->publicKeyToAddress($aliceKey->publicKey());
+$aliceRawAddress = $aliceKey->address;
+echo $aliceRawAddress . PHP_EOL;
+```
+
+```
+>TCTEAYWL2X5PQMYKZD26SLPWUZBRX3KNWMZXBFY
 ```
 
 ### 公開鍵クラスの生成
@@ -261,7 +266,7 @@ Aliceの秘密鍵・Bobの公開鍵で暗号化し、Aliceの公開鍵・Bobの�
 $bobKey = new KeyPair(PrivateKey::random());
 
 $message = "Hello Symbol!";
-$aliceMesgEncoder = new MessageEncoder($aliceKey);
+$encryptedMessage = $aliceKey->messageEncoder()->encode($bobKey->publicKey(), $message);
 $encryptedMessage = $aliceMesgEncoder->encode($bobKey->publicKey(), $message);
 echo strtoupper(bin2hex($encryptedMessage)) . PHP_EOL;
 ```
@@ -273,7 +278,7 @@ echo strtoupper(bin2hex($encryptedMessage)) . PHP_EOL;
 #### 復号
 ```php
 $bobMsgEncoder = new MessageEncoder($bobKey);
-$decryptMessageData = $bobMsgEncoder->tryDecode($aliceKey->publicKey(), $encryptedMessage);
+$decryptMessageData = $bobMsgEncoder->tryDecode($aliceKey->keyPair->publicKey(), $encryptedMessage);
 var_dump($decryptMessageData);
 if($decryptMessageData['isDecoded']){
     echo "\nDecoded message: " . PHP_EOL;
@@ -298,7 +303,7 @@ Aliceの秘密鍵でメッセージを署名し、Aliceの公開鍵と署名で�
 
 ```php
 $payload = "Hellow Symbol!";
-$signature = $aliceKey->sign($payload);
+$signature = $aliceKey->keyPair->sign($payload);
 echo "\n===署名===" . PHP_EOL;
 echo $signature . PHP_EOL;
 ```
@@ -308,7 +313,7 @@ echo $signature . PHP_EOL;
 
 #### 検証
 ```php
-$v = new Verifier($aliceKey->publicKey());
+$v = new Verifier($aliceKey->keyPair->publicKey());
 $isVerified = $v->verify($payload, $signature);
 echo "alice verified: " . PHP_EOL;
 var_dump($isVerified);
