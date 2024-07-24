@@ -405,4 +405,12 @@ $receiptApiInstance = new ReceiptRoutesApi($client, $config);
 $state = $receiptApiInstance->searchAddressResolutionStatements(
   height: 1600481
 );
-var_dump($state);
+// var_dump($state);
+
+/**
+ * モザイクの場合
+ */
+$state = $receiptApiInstance->searchMosaicResolutionStatements(
+  height: 1601155
+);
+echo $state;
