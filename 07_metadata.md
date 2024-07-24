@@ -1,46 +1,83 @@
 # 7.メタデータ
 
-アカウント・モザイク・ネームスペースに対してKey-Value形式のデータを登録することができます。  
-Valueの最大値は1024バイトです。
-本章ではモザイク・ネームスペースの作成アカウントとメタデータの作成アカウントがどちらもAliceであることを前提に説明します。
+アカウント・モザイク・ネームスペースに対してKey-Value形式のデータを登録することができます。
+Valueの最大値は1024バイトです。 本章ではモザイク・ネームスペースの作成アカウントとメタデータの作成アカウントがどちらもAliceであることを前提に説明します。
 
-本章のサンプルスクリプトを実行する前に以下を実行して必要ライブラリを読み込んでおいてください。
-```js
-metaRepo = repo.createMetadataRepository();
-mosaicRepo = repo.createMosaicRepository();
-metaService = new sym.MetadataTransactionService(metaRepo);
-```
 ## 7.1 アカウントに登録
 
 アカウントに対して、Key-Value値を登録します。
 
-```js
-key = sym.KeyGenerator.generateUInt64Key("key_account");
-value = "test";
+```php
+$config = new Configuration();
+$config->setHost($NODE_URL);
+$client = new GuzzleHttp\Client();
+$metaApiInstance = new MetadataRoutesApi($client, $config);
 
-tx = await metaService.createAccountMetadataTransaction(
-    undefined,
-    networkType,
-    alice.address, //メタデータ記録先アドレス
-    key,value, //Key-Value値
-    alice.address //メタデータ作成者アドレス
-).toPromise();
+/**
+ * メタデータの作成
+ * アカウントに登録
+ */
+$targetAddress = $aliceKey->address;  // メタデータ記録先アドレス
+$sourceAddress = $aliceKey->address;  // メタデータ作成者アドレス
 
-aggregateTx = sym.AggregateTransaction.createComplete(
-  sym.Deadline.create(epochAdjustment),
-  [tx.toAggregate(alice.publicAccount)],
-  networkType,[]
-).setMaxFeeForAggregate(100, 0);
+// キーと値の設定
+$keyId = Metadata::metadataGenerateKey("key_account");
+$newValue = "test";
 
-signedTx = alice.sign(aggregateTx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+// 同じキーのメタデータが登録されているか確認
+$metadataInfo = $metaApiInstance->searchMetadataEntries(
+  source_address: $sourceAddress,
+  scoped_metadata_key: strtoupper(dechex($keyId)),  // 16進数の大文字の文字列に変換
+);
+
+$oldValue = hex2bin($metadataInfo['data'][0]['metadata_entry']['value']); //16進エンコードされたバイナリ文字列をデコード
+$updateValue = Metadata::metadataUpdateValue($oldValue, $newValue, true);
+
+$tx = new EmbeddedAccountMetadataTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,  // 署名者公開鍵
+  targetAddress: new UnresolvedAddress($targetAddress),  // メタデータ記録先アドレス
+  scopedMetadataKey: $keyId,
+  valueSizeDelta: strlen($newValue) - strlen($oldValue),
+  value: $updateValue,
+);
+
+// マークルハッシュの算出
+$embeddedTransactions = [$tx];
+$merkleHash = $facade->hashEmbeddedTransactions($embeddedTransactions);
+
+// アグリゲートTx作成
+$aggregateTx = new AggregateCompleteTransactionV2(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  transactionsHash: $merkleHash,
+  transactions: $embeddedTransactions,
+);
+// 手数料
+$facade->setMaxFee($aggregateTx, 100);
+
+// 署名
+$sig = $aliceKey->signTransaction($aggregateTx);
+$payload = $facade->attachSignature($aggregateTx, $sig);
+
+$apiInstance = new TransactionRoutesApi($client, $config);
+
+// アナウンス
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
+$hash = $facade->hashTransaction($aggregateTx);
+echo "\n===トランザクションハッシュ===" . PHP_EOL;
+echo $hash . PHP_EOL;
 ```
 
-メタデータの登録には記録先アカウントが承諾を示す署名が必要です。
-また、記録先アカウントと記録者アカウントが同一でもアグリゲートトランザクションにする必要があります。
+メタデータの登録には記録先アカウントが承諾を示す署名が必要です。 また、記録先アカウントと記録者アカウントが同一でもアグリゲートトランザクションにする必要があります。
 
-異なるアカウントのメタデータに登録する場合は署名時に
-signTransactionWithCosignatoriesを使用します。
+異なるアカウントのメタデータに登録する場合は署名時に signTransactionWithCosignatoriesを使用します。
 
 ```js
 tx = await metaService.createAccountMetadataTransaction(
