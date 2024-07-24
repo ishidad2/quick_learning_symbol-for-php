@@ -342,7 +342,7 @@ object(SymbolSdk\Symbol\Models\NamespaceId)#101 (2) {
 
 アドレスへリンクしたネームスペースの参照します
 ```php
-$namespaceId = new NamespaceId(IdGenerator::generateNamespaceId("fugafuga"));
+$namespaceId = new NamespaceId(IdGenerator::generateNamespaceId("xembook"));
 $namespadeInfo = $namespaceApiInstance->getNamespace(substr($namespaceId, 2));
 var_dump($namespadeInfo);
 ```
@@ -429,7 +429,7 @@ NamespaceRegistrationTypeは以下の通りです。
 
 モザイクへリンクしたネームスペースを参照します。
 ```php
-$namespaceIds = IdGenerator::generateNamespacePath("fugafuga.hoge");
+$namespaceIds = IdGenerator::generateNamespacePath("xembook.tomato");
 $namespaceId = new NamespaceId($namespaceIds[count($namespaceIds) - 1]);
 $namespadeInfo = $namespaceApiInstance->getNamespace(substr($namespaceId, 2));
 var_dump($namespadeInfo);
