@@ -26,3 +26,4 @@ $networkProperties = $networkApiInstance->getNetworkProperties();
 $epochAdjustment = $networkProperties->getNetwork()->getEpochAdjustment();
 $identifier = $networkProperties->getNetwork()->getIdentifier();
 $facade = new SymbolFacade('testnet');
+$epochAdjustment = 1667250467;
