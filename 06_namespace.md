@@ -10,21 +10,23 @@ Symbolブロックチェーンではネームスペースをレンタルして�
 
 ルートネームスペースを365日レンタルする場合の手数料を計算します。
 
-```js
-nwRepo = repo.createNetworkRepository();
+```php
+$config = new Configuration();
+$config->setHost($NODE_URL);
+$client = new GuzzleHttp\Client();
 
-rentalFees = await nwRepo.getRentalFees().toPromise();
-rootNsperBlock = rentalFees.effectiveRootNamespaceRentalFeePerBlock.compact();
-rentalDays = 365;
-rentalBlock = rentalDays * 24 * 60 * 60 / 30;
-rootNsRenatalFeeTotal = rentalBlock * rootNsperBlock;
-console.log("rentalBlock:" + rentalBlock);
-console.log("rootNsRenatalFeeTotal:" + rootNsRenatalFeeTotal);
+$networkApiInstance = new NetworkRoutesApi($client, $config);
+$rootNsperBlock = $networkApiInstance->getRentalFees()->getEffectiveRootNamespaceRentalFeePerBlock();
+$rentalDays = 365;
+$rentalBlock = ($rentalDays * 24 * 60 * 60) / 30;
+$rootNsRenatalFeeTotal = $rentalBlock * $rootNsperBlock;
+echo "rentalBlock: " . $rentalBlock . PHP_EOL;
+echo "Root Namespace Rental Fee: " . $rootNsRenatalFeeTotal . PHP_EOL;
 ```
 ###### 出力例
-```js
-> rentalBlock:1051200
-> rootNsRenatalFeeTotal:210240000 //約210XYM
+```
+rentalBlock: 1051200
+Root Namespace Rental Fee: 210240000 //約210XYM
 ```
 
 期間はブロック数で指定します。1ブロックを30秒として計算しました。
@@ -32,13 +34,13 @@ console.log("rootNsRenatalFeeTotal:" + rootNsRenatalFeeTotal);
 
 サブネームスペースの取得手数料を計算します。
 
-```js
-childNamespaceRentalFee = rentalFees.effectiveChildNamespaceRentalFee.compact()
-console.log(childNamespaceRentalFee);
+```php
+$childNamespaceRentalFee = $networkApiInstance->getRentalFees()->getEffectiveChildNamespaceRentalFee();
+echo "Child Namespace Rental Fee: " . $childNamespaceRentalFee . PHP_EOL;
 ```
 ###### 出力例
 ```js
-> 10000000 //10XYM
+Child Namespace Rental Fee: 10000000 //10XYM
 ```
 
 サブネームスペースに期間指定はありません。ルートネームスペースをレンタルしている限り使用できます。
@@ -46,40 +48,81 @@ console.log(childNamespaceRentalFee);
 ## 6.2 レンタル
 
 ルートネームスペースをレンタルします(例:xembook)
-```js
+```php
+$name = "xembook";
+$tx = new NamespaceRegistrationTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,  // 署名者公開鍵
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  duration: new BlockDuration(86400), // 有効期限
+  id: new NamespaceId(IdGenerator::generateNamespaceId($name)), //必須
+  name: $name,
+);
+$facade->setMaxFee($tx, 100);
+// 署名
+$sig = $aliceKey->signTransaction($tx);
+$payload = $facade->attachSignature($tx, $sig);
 
-tx = sym.NamespaceRegistrationTransaction.createRootNamespace(
-    sym.Deadline.create(epochAdjustment),
-    "xembook",
-    sym.UInt64.fromUint(86400),
-    networkType
-).setMaxFee(100);
-signedTx = alice.sign(tx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+// アナウンス
+$config = new Configuration();
+$config->setHost($NODE_URL);
+$client = new GuzzleHttp\Client();
+$apiInstance = new TransactionRoutesApi($client, $config);
+
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 
 サブネームスペースをレンタルします(例:xembook.tomato)
-```js
-subNamespaceTx = sym.NamespaceRegistrationTransaction.createSubNamespace(
-    sym.Deadline.create(epochAdjustment),
-    "tomato",  //作成するサブネームスペース
-    "xembook", //紐づけたいルートネームスペース
-    networkType,
-).setMaxFee(100);
-signedTx = alice.sign(subNamespaceTx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+```php
+$parnetNameId = IdGenerator::generateNamespaceId("xembook"); //ルートネームスペース名
+$name = "tomato"; //サブネームスペース名
+
+// Tx作成
+$tx = new NamespaceRegistrationTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,  // 署名者公開鍵
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  duration: new BlockDuration(86400), // 有効期限
+  parentId: new NamespaceId($parnetNameId),
+  id: new NamespaceId(IdGenerator::generateNamespaceId($name, $parnetNameId)),
+  registrationType: new NamespaceRegistrationType(NamespaceRegistrationType::CHILD),
+  name: $name,
+);
+$facade->setMaxFee($tx, 200);
+
+// 署名
+$sig = $aliceKey->signTransaction($tx);
+$payload = $facade->attachSignature($tx, $sig);
+
+/**
+ * アナウンス
+ */
+$config = new Configuration();
+$config->setHost($NODE_URL);
+$client = new GuzzleHttp\Client();
+$apiInstance = new TransactionRoutesApi($client, $config);
+
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 
 2階層目のサブネームスペースを作成したい場合は
 例えば、xembook.tomato.morningを定義したい場合は以下のようにします。
 
-```js
-subNamespaceTx = sym.NamespaceRegistrationTransaction.createSubNamespace(
-    ,
-    "morning",  //作成するサブネームスペース
-    "xembook.tomato", //紐づけたいルートネームスペース
-    ,
-)
+```php
+$rootName = IdGenerator::generateNamespaceId("xembook"); //ルートネームスペース名
+$parnetNameId = IdGenerator::generateNamespaceId("tomato", $rootName); // 紐づけたい1階層目のサブネームスペース
+$name = "morning"; //サブネームスペース名
+// 以下はサブネームスペース作成と同じ
 ```
 
 
@@ -87,59 +130,112 @@ subNamespaceTx = sym.NamespaceRegistrationTransaction.createSubNamespace(
 
 レンタル済みルートネームスペースの有効期限を計算します。
 
-```js
-nsRepo = repo.createNamespaceRepository();
-chainRepo = repo.createChainRepository();
-blockRepo = repo.createBlockRepository();
+```php
+$namespaceIds = IdGenerator::generateNamespacePath("xembook"); // ルートネームスペース
+$namespaceId = new NamespaceId($namespaceIds[count($namespaceIds) - 1]);
 
-namespaceId = new sym.NamespaceId("xembook");
-nsInfo = await nsRepo.getNamespace(namespaceId).toPromise();
-lastHeight = (await chainRepo.getChainInfo().toPromise()).height;
-lastBlock = await blockRepo.getBlockByHeight(lastHeight).toPromise();
-remainHeight = nsInfo.endHeight.compact() - lastHeight.compact();
+$config = new Configuration();
+$config->setHost($NODE_URL);
+$client = new GuzzleHttp\Client();
+$namespaceApiInstance = new NamespaceRoutesApi($client, $config);
+try {
+  $nsInfo = $namespaceApiInstance->getNamespace(substr($namespaceId, 2));
+  // echo $nsInfo['namespace']. PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 
-endDate = new Date(lastBlock.timestamp.compact() + remainHeight * 30000 + epochAdjustment * 1000)
-console.log(endDate);
+$chainApiInstance = new ChainRoutesApi($client, $config);
+try {
+  $chainInfo = $chainApiInstance->getChainInfo(substr($namespaceId, 2));
+  // echo $chainInfo . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
+$lastHeight = (int)$chainInfo['height'];
+
+$blockApiInstance = new BlockRoutesApi($client, $config);
+try {
+  $lastBlock = $blockApiInstance->getBlockByHeight($lastHeight);
+  // echo $lastBlock . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
+$remainHeight = (int)$nsInfo['namespace']['end_height'] - $lastHeight;
+
+$endDate = Carbon::createFromTimestampMs((int)$lastBlock['block']['timestamp'] + $remainHeight * 30000 + $epochAdjustment * 1000);
+echo "End Date: " . $endDate . PHP_EOL;
 ```
 
 ネームスペース情報の終了ブロックを取得し、現在のブロック高から差し引いた残ブロック数に30秒(平均ブロック生成間隔)を掛け合わせた日時を出力します。
 テストネットでは設定した有効期限よりも1日程度更新期限が猶予されます。メインネットはこの値が30日となっていますのでご留意ください
 
 ###### 出力例
-```js
-> Tue Mar 29 2022 18:17:06 GMT+0900 (日本標準時)
+```
+End Date: 2024-09-22 04:02:26
 ```
 ## 6.3 リンク
 
 ### アカウントへのリンク
-```js
-namespaceId = new sym.NamespaceId("xembook");
-address = sym.Address.createFromRawAddress("TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ");
-tx = sym.AliasTransaction.createForAddress(
-    sym.Deadline.create(epochAdjustment),
-    sym.AliasAction.Link,
-    namespaceId,
-    address,
-    networkType
-).setMaxFee(100);
-signedTx = alice.sign(tx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+```php
+$namespaceId = IdGenerator::generateNamespaceId("xembook"); // ルートネームスペース
+$address = $aliceKey->address;
+
+//Tx作成
+$tx = new AddressAliasTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  namespaceId: new NamespaceId($namespaceId),
+  address: new Address($address),
+  aliasAction: new AliasAction(AliasAction::LINK),
+);
+$facade->setMaxFee($tx, 100);
+
+//署名
+$sig = $aliceKey->signTransaction($tx);
+$payload = $facade->attachSignature($tx, $sig);
+
+$apiInstance = new TransactionRoutesApi($client, $config);
+
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 リンク先のアドレスは自分が所有していなくても問題ありません。
 
 ### モザイクへリンク
-```js
-namespaceId = new sym.NamespaceId("xembook.tomato");
-mosaicId = new sym.MosaicId("3A8416DB2D53xxxx");
-tx = sym.AliasTransaction.createForMosaic(
-    sym.Deadline.create(epochAdjustment),
-    sym.AliasAction.Link,
-    namespaceId,
-    mosaicId,
-    networkType
-).setMaxFee(100);
-signedTx = alice.sign(tx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+```php
+$namespaceIds = IdGenerator::generateNamespacePath("xembook.tomato"); // ルートネームスペース
+$namespaceId = new NamespaceId($namespaceIds[count($namespaceIds) - 1]);
+$mosaicId = new MosaicId("0x12679808DC2xxxx");
+
+//Tx作成
+$tx = new MosaicAliasTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  namespaceId: new NamespaceId($namespaceId),
+  mosaicId: $mosaicId,
+  aliasAction: new AliasAction(AliasAction::LINK),
+);
+$facade->setMaxFee($tx, 100);
+
+//署名
+$sig = $aliceKey->signTransaction($tx);
+$payload = $facade->attachSignature($tx, $sig);
+
+$apiInstance = new TransactionRoutesApi($client, $config);
+
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 
 モザイクを作成したアドレスと同一の場合のみリンクできるようです。
@@ -147,78 +243,178 @@ await txRepo.announce(signedTx).toPromise();
 
 ## 6.4 未解決で使用
 
-送信先にUnresolvedAccountとして指定して、アドレスを特定しないままトランザクションを署名・アナウンスします。
-チェーン側で解決されたアカウントに対しての送信が実施されます。
-```js
-namespaceId = new sym.NamespaceId("xembook");
-tx = sym.TransferTransaction.create(
-    sym.Deadline.create(epochAdjustment),
-    namespaceId, //UnresolvedAccount:未解決アカウントアドレス
-    [],
-    sym.EmptyMessage,
-    networkType
-).setMaxFee(100);
-signedTx = alice.sign(tx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+送信先にUnresolvedAccountとして指定して、アドレスを特定しないままトランザクションを署名・アナウンスします。 チェーン側で解決されたアカウントに対しての送信が実施されます。
+
+v3 ではネームスペースを直接指定できないため、アドレスを特定しないまま操作する場合はデータを加工する必要があります。
+
+```php
+function processNamespaceId(string $namespaceIdHex, int $networkType): string {
+  $namespaceIdData = Converter::binaryToArray(hex2bin($namespaceIdHex));
+  $namespaceIdData = array_reverse($namespaceIdData);
+  array_unshift($namespaceIdData, $networkType + 1);
+  $namespaceIdData = array_merge($namespaceIdData, array_fill(0, 24 - count($namespaceIdData), 0));
+
+  // バイト配列を文字列に変換
+  return implode(array_map('chr', $namespaceIdData));
+}
+
+// UnresolvedAccount 導出
+$namespaceId = IdGenerator::generateNamespaceId("xembook"); // ルートネームスペース
+$namespaceIdHex = dechex($namespaceId);
+$networkType = NetworkType::TESTNET;
+$unresolvedAccount = processNamespaceId($namespaceIdHex, $networkType);
+
+// Tx作成
+$tx = new TransferTransactionV1(
+  signerPublicKey: $aliceKey->publicKey,
+  network: new NetworkType($networkType),
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  recipientAddress: new UnresolvedAddress($unresolvedAccount),
+  message: ''
+);
+$facade->setMaxFee($tx, 100);
+
+//署名
+$sig = $aliceKey->signTransaction($tx);
+$payload = $facade->attachSignature($tx, $sig);
+
+$apiInstance = new TransactionRoutesApi($client, $config);
+
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
+
 ```
 送信モザイクにUnresolvedMosaicとして指定して、モザイクIDを特定しないままトランザクションを署名・アナウンスします。
 
-```js
-namespaceId = new sym.NamespaceId("xembook.tomato");
-tx = sym.TransferTransaction.create(
-    sym.Deadline.create(epochAdjustment),
-    address, 
-    [
-        new sym.Mosaic(
-          namespaceId,//UnresolvedMosaic:未解決モザイク
-          sym.UInt64.fromUint(1) //送信量
-        )
-    ],
-    sym.EmptyMessage,
-    networkType
-).setMaxFee(100);
-signedTx = alice.sign(tx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+```php
+$namespaceIds = IdGenerator::generateNamespacePath("xembook.tomato"); // ルートネームスペース
+$namespaceId = new NamespaceId($namespaceIds[count($namespaceIds) - 1]);
+
+$tx = new TransferTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  recipientAddress: $aliceKey->address,
+  mosaics: [
+    new UnresolvedMosaic(
+      mosaicId: new UnresolvedMosaicId($namespaceId),
+      amount: new Amount(100)
+    ),
+  ],
+);
+$facade->setMaxFee($tx, 100);
+
+//署名
+$sig = $aliceKey->signTransaction($tx);
+$payload = $facade->attachSignature($tx, $sig);
+
+$apiInstance = new TransactionRoutesApi($client, $config);
+
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 
 XYMをネームスペースで使用する場合は以下のように指定します。
 
-```js
-namespaceId = new sym.NamespaceId("symbol.xym");
+```php
+$namespaceIds = IdGenerator::generateNamespacePath("symbol.xym");
+$namespaceId = new NamespaceId($namespaceIds[count($namespaceIds) - 1]);
+var_dump($namespaceId);
 ```
-```js
-> NamespaceId {fullName: 'symbol.xym', id: Id}
-    fullName: "symbol.xym"
-    id: Id {lower: 1106554862, higher: 3880491450}
+```php
+object(SymbolSdk\Symbol\Models\NamespaceId)#101 (2) {
+  ["size"]=>
+  int(8)
+  ["value"]=>
+  int(-1780160202445377554)
+}
 ```
-
-Idは内部ではUint64と呼ばれる数値 `{lower: 1106554862, higher: 3880491450}` で保持されています。
 
 ## 6.5 参照
 
 アドレスへリンクしたネームスペースの参照します
-```js
-nsRepo = repo.createNamespaceRepository();
-
-namespaceInfo = await nsRepo.getNamespace(new sym.NamespaceId("xembook")).toPromise();
-console.log(namespaceInfo);
+```php
+$namespaceId = new NamespaceId(IdGenerator::generateNamespaceId("fugafuga"));
+$namespadeInfo = $namespaceApiInstance->getNamespace(substr($namespaceId, 2));
+var_dump($namespadeInfo);
 ```
 ###### 出力例
-```js
-NamespaceInfo
-    active: true
-  > alias: AddressAlias
-        address: Address {address: 'TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ', networkType: 152}
-        mosaicId: undefined
-        type: 2 //AliasType
-    depth: 1
-    endHeight: UInt64 {lower: 500545, higher: 0}
-    index: 1
-    levels: [NamespaceId]
-    ownerAddress: Address {address: 'TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ', networkType: 152}
-    parentId: NamespaceId {id: Id}
-    registrationType: 0 //NamespaceRegistrationType
-    startHeight: UInt64 {lower: 324865, higher: 0}
+```php
+object(SymbolRestClient\Model\NamespaceInfoDTO)#124 (2) {
+  ["openAPINullablesSetToNull":protected]=>
+  array(0) {
+  }
+  ["container":protected]=>
+  array(3) {
+    ["id"]=>
+    string(24) "66A048C3527B051AC20A9E78"
+    ["meta"]=>
+    object(SymbolRestClient\Model\NamespaceMetaDTO)#129 (2) {
+      ["openAPINullablesSetToNull":protected]=>
+      array(0) {
+      }
+      ["container":protected]=>
+      array(2) {
+        ["active"]=>
+        bool(true)
+        ["index"]=>
+        int(1)
+      }
+    }
+    ["namespace"]=>
+    object(SymbolRestClient\Model\NamespaceDTO)#120 (2) {
+      ["openAPINullablesSetToNull":protected]=>
+      array(0) {
+      }
+      ["container":protected]=>
+      array(11) {
+        ["version"]=>
+        int(1)
+        ["registration_type"]=>
+        int(0)
+        ["depth"]=>
+        int(1)
+        ["level0"]=>
+        string(16) "E6707B3A003BDDD3"
+        ["level1"]=>
+        NULL
+        ["level2"]=>
+        NULL
+        ["alias"]=>
+        object(SymbolRestClient\Model\AliasDTO)#132 (2) {
+          ["openAPINullablesSetToNull":protected]=>
+          array(0) {
+          }
+          ["container":protected]=>
+          array(3) {
+            ["type"]=>
+            int(2)
+            ["mosaic_id"]=>
+            NULL
+            ["address"]=>
+            string(48) "98E521BD0F024F58E670A023BF3A14F3BECAF0280396BED0"
+          }
+        }
+        ["parent_id"]=>
+        string(16) "0000000000000000"
+        ["owner_address"]=>
+        string(48) "98E521BD0F024F58E670A023BF3A14F3BECAF0280396BED0"
+        ["start_height"]=>
+        string(7) "1597929"
+        ["end_height"]=>
+        string(7) "1773609"
+      }
+    }
+  }
+}
 ```
 
 AliasTypeは以下の通りです。
@@ -232,59 +428,97 @@ NamespaceRegistrationTypeは以下の通りです。
 ```
 
 モザイクへリンクしたネームスペースを参照します。
-```js
-nsRepo = repo.createNamespaceRepository();
-
-namespaceInfo = await nsRepo.getNamespace(new sym.NamespaceId("xembook.tomato")).toPromise();
-console.log(namespaceInfo);
+```php
+$namespaceIds = IdGenerator::generateNamespacePath("fugafuga.hoge");
+$namespaceId = new NamespaceId($namespaceIds[count($namespaceIds) - 1]);
+$namespadeInfo = $namespaceApiInstance->getNamespace(substr($namespaceId, 2));
+var_dump($namespadeInfo);
 ```
 ###### 出力例
-```js
-NamespaceInfo
-  > active: true
-    alias: MosaicAlias
-        address: undefined
-        mosaicId: MosaicId
-        id: Id {lower: 1360892257, higher: 309702839}
-        type: 1 //AliasType
-    depth: 2
-    endHeight: UInt64 {lower: 500545, higher: 0}
-    index: 1
-    levels: (2) [NamespaceId, NamespaceId]
-    ownerAddress: Address {address: 'TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ', networkType: 152}
-    parentId: NamespaceId {id: Id}
-    registrationType: 1 //NamespaceRegistrationType
-    startHeight: UInt64 {lower: 324865, higher: 0}
+```php
+object(SymbolRestClient\Model\NamespaceInfoDTO)#104 (2) {
+  ["openAPINullablesSetToNull":protected]=>
+  array(0) {
+  }
+  ["container":protected]=>
+  array(3) {
+    ["id"]=>
+    string(24) "66A048C3527B051AC20A9E7D"
+    ["meta"]=>
+    object(SymbolRestClient\Model\NamespaceMetaDTO)#133 (2) {
+      ["openAPINullablesSetToNull":protected]=>
+      array(0) {
+      }
+      ["container":protected]=>
+      array(2) {
+        ["active"]=>
+        bool(true)
+        ["index"]=>
+        int(1)
+      }
+    }
+    ["namespace"]=>
+    object(SymbolRestClient\Model\NamespaceDTO)#128 (2) {
+      ["openAPINullablesSetToNull":protected]=>
+      array(0) {
+      }
+      ["container":protected]=>
+      array(11) {
+        ["version"]=>
+        int(1)
+        ["registration_type"]=>
+        int(1)
+        ["depth"]=>
+        int(2)
+        ["level0"]=>
+        string(16) "E6707B3A003BDDD3"
+        ["level1"]=>
+        string(16) "9EFE1CF171B6C81E"
+        ["level2"]=>
+        NULL
+        ["alias"]=>
+        object(SymbolRestClient\Model\AliasDTO)#136 (2) {
+          ["openAPINullablesSetToNull":protected]=>
+          array(0) {
+          }
+          ["container":protected]=>
+          array(3) {
+            ["type"]=>
+            int(1)
+            ["mosaic_id"]=>
+            string(16) "12679808DC2A1493"
+            ["address"]=>
+            NULL
+          }
+        }
+        ["parent_id"]=>
+        string(16) "E6707B3A003BDDD3"
+        ["owner_address"]=>
+        string(48) "98E521BD0F024F58E670A023BF3A14F3BECAF0280396BED0"
+        ["start_height"]=>
+        string(7) "1597929"
+        ["end_height"]=>
+        string(7) "1773609"
+      }
+    }
+  }
+}
 ```
 
 ### 逆引き
 
 アドレスに紐づけられたネームスペースを全て調べます。
-```js
-nsRepo = repo.createNamespaceRepository();
-
-accountNames = await nsRepo.getAccountsNames(
-  [sym.Address.createFromRawAddress("TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ")]
-).toPromise();
-
-namespaceIds = accountNames[0].names.map(name=>{
-  return name.namespaceId;
-});
-console.log(namespaceIds);
+```php
+$addresses = ["addresses"=> ["TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ"]];
+$accountNames = $namespaceApiInstance->getAccountsNames($addresses);
+var_dump($accountNames);
 ```
 
 モザイクに紐づけられたネームスペースを全て調べます。
-```js
-nsRepo = repo.createNamespaceRepository();
-
-mosaicNames = await nsRepo.getMosaicsNames(
-  [new sym.MosaicId("72C0212E67A08BCE")]
-).toPromise();
-
-namespaceIds = mosaicNames[0].names.map(name=>{
-  return name.namespaceId;
-});
-console.log(namespaceIds);
+```php
+$mosaicIds = ["mosaicIds"=> ["72C0212E67A08BCE"]];
+$mosaicNames = $namespaceApiInstance->getMosaicsNames($mosaicIds);
+var_dump($mosaicNames);
 ```
 
 
@@ -292,22 +526,47 @@ console.log(namespaceIds);
 
 トランザクションに使用されたネームスペースをブロックチェーン側がどう解決したかを確認します。
 
-```js
-receiptRepo = repo.createReceiptRepository();
-state = await receiptRepo.searchAddressResolutionStatements({height:179401}).toPromise();
+```php
+$receiptApiInstance = new ReceiptRoutesApi($client, $config);
+
+$state = $receiptApiInstance->searchAddressResolutionStatements(
+  height: 1600481
+);
+var_dump($state);
 ```
 ###### 出力例
-```js
-data: Array(1)
-  0: ResolutionStatement
-    height: UInt64 {lower: 179401, higher: 0}
-    resolutionEntries: Array(1)
-      0: ResolutionEntry
-        resolved: Address {address: 'TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ', networkType: 152}
-        source: ReceiptSource {primaryId: 1, secondaryId: 0}
-    resolutionType: 0 //ResolutionType
-    unresolved: NamespaceId
-      id: Id {lower: 646738821, higher: 2754876907}
+```
+{
+    "data": [
+        {
+            "id": "66A07563527B051AC20AA1FE",
+            "meta": {
+                "timestamp": "54541377011"
+            },
+            "statement": {
+                "height": "1600481",
+                "unresolved": {},
+                "resolutionEntries": [
+                    {
+                        "source": {
+                            "primaryId": 1,
+                            "secondaryId": 0
+                        },
+                        "resolved": {}
+                    }
+                ]
+            }
+        }
+    ],
+    "pagination": {
+        "pageNumber": 1,
+        "pageSize": 10
+    }
+}
+```
+
+```
+http://sym-test-03.opening-line.jp:3000/statements/resolutions/address?height=1600481
 ```
 
 ResolutionTypeは以下の通りです。
