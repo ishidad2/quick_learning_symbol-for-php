@@ -360,16 +360,16 @@ echo $hash . PHP_EOL;
  * 参照 アカウント
  */
 $namespaceId = new NamespaceId(IdGenerator::generateNamespaceId("fugafuga"));
-$namespadeInfo = $namespaceApiInstance->getNamespace(substr($namespaceId, 2));
-// var_dump($namespadeInfo);
+$namespaceInfo = $namespaceApiInstance->getNamespace(substr($namespaceId, 2));
+// var_dump($namespaceInfo);
 
 /**
  * 参照 モザイク
  */
 $namespaceIds = IdGenerator::generateNamespacePath("fugafuga.hoge");
 $namespaceId = new NamespaceId($namespaceIds[count($namespaceIds) - 1]);
-$namespadeInfo = $namespaceApiInstance->getNamespace(substr($namespaceId, 2));
-// var_dump($namespadeInfo);
+$namespaceInfo = $namespaceApiInstance->getNamespace(substr($namespaceId, 2));
+// var_dump($namespaceInfo);
 
 /**
  * 逆引き アドレス

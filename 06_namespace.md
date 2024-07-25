@@ -332,8 +332,8 @@ object(SymbolSdk\Symbol\Models\NamespaceId)#101 (2) {
 アドレスへリンクしたネームスペースの参照します
 ```php
 $namespaceId = new NamespaceId(IdGenerator::generateNamespaceId("xembook"));
-$namespadeInfo = $namespaceApiInstance->getNamespace(substr($namespaceId, 2));
-var_dump($namespadeInfo);
+$namespaceInfo = $namespaceApiInstance->getNamespace(substr($namespaceId, 2));
+var_dump($namespaceInfo);
 ```
 ###### 出力例
 ```php
@@ -420,8 +420,8 @@ NamespaceRegistrationTypeは以下の通りです。
 ```php
 $namespaceIds = IdGenerator::generateNamespacePath("xembook.tomato");
 $namespaceId = new NamespaceId($namespaceIds[count($namespaceIds) - 1]);
-$namespadeInfo = $namespaceApiInstance->getNamespace(substr($namespaceId, 2));
-var_dump($namespadeInfo);
+$namespaceInfo = $namespaceApiInstance->getNamespace(substr($namespaceId, 2));
+var_dump($namespaceInfo);
 ```
 ###### 出力例
 ```php
