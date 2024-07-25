@@ -79,25 +79,68 @@ echo $hash . PHP_EOL;
 
 異なるアカウントのメタデータに登録する場合は署名時に signTransactionWithCosignatoriesを使用します。
 
-```js
-tx = await metaService.createAccountMetadataTransaction(
-    undefined,
-    networkType,
-    bob.address, //メタデータ記録先アドレス
-    key,value, //Key-Value値
-    alice.address //メタデータ作成者アドレス
-).toPromise();
+```php
+$bobKey = $facade->createAccount(new PrivateKey('ED949592C90CA58A16CB5BEC303DB011A48373063DDB0C4CFD6DFD01Fxxxxxx'));
+$targetAddress = $bobKey->address;  // メタデータ記録先アドレス
+$sourceAddress = $aliceKey->address;  // メタデータ作成者アドレス
 
-aggregateTx = sym.AggregateTransaction.createComplete(
-  sym.Deadline.create(epochAdjustment),
-  [tx.toAggregate(alice.publicAccount)],
-  networkType,[]
-).setMaxFeeForAggregate(100, 1); // 第二引数に連署者の数:1
+// キーと値の設定
+$keyId = Metadata::metadataGenerateKey("key_account");
+$newValue = "test";
 
-signedTx = aggregateTx.signTransactionWithCosignatories(
-  alice,[bob],generationHash,// 第二引数に連署者
+// 同じキーのメタデータが登録されているか確認
+$metadataInfo = $metaApiInstance->searchMetadataEntries(
+  target_address: $targetAddress,
+  source_address: $sourceAddress,
+  scoped_metadata_key: strtoupper(dechex($keyId)),  // 16進数の大文字の文字列に変換
 );
-await txRepo.announce(signedTx).toPromise();
+
+$oldValue = hex2bin($metadataInfo['data'][0]['metadata_entry']['value']); //16進エンコードされたバイナリ文字列をデコード
+$updateValue = Metadata::metadataUpdateValue($oldValue, $newValue, true);
+
+$tx = new EmbeddedAccountMetadataTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,  // 署名者公開鍵
+  targetAddress: $targetAddress,  // メタデータ記録先アドレス
+  scopedMetadataKey: $keyId,
+  valueSizeDelta: strlen($newValue) - strlen($oldValue),
+  value: $updateValue,
+);
+
+// マークルハッシュの算出
+$embeddedTransactions = [$tx];
+$merkleHash = $facade->hashEmbeddedTransactions($embeddedTransactions);
+
+// アグリゲートTx作成
+$aggregateTx = new AggregateCompleteTransactionV2(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  transactionsHash: $merkleHash,
+  transactions: $embeddedTransactions,
+);
+// 手数料
+$facade->setMaxFee($aggregateTx, 100, 1);
+
+// 作成者による署名
+$sig = $aliceKey->signTransaction($aggregateTx);
+$facade->attachSignature($aggregateTx, $sig);
+
+// 記録先アカウントによる連署
+$coSig = $bobKey->cosignTransaction($aggregateTx);
+array_push($aggregateTx->cosignatures, $coSig);
+
+$payload = ['payload' => strtoupper(bin2hex($aggregateTx->serialize()))];
+
+$apiInstance = new TransactionRoutesApi($client, $config);
+
+// アナウンス
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 
 bobの秘密鍵が分からない場合はこの後の章で説明する
@@ -108,30 +151,64 @@ bobの秘密鍵が分からない場合はこの後の章で説明する
 ターゲットとなるモザイクに対して、Key値・ソースアカウントの複合キーでValue値を登録します。
 登録・更新にはモザイクを作成したアカウントの署名が必要です。
 
-```js
-mosaicId = new sym.MosaicId("1275B0B7511D9161");
-mosaicInfo = await mosaicRepo.getMosaic(mosaicId).toPromise();
+```php
+$targetMosaic = '6FA40B0B8B9E392F';
+$mosaicApiInstance = new MosaicRoutesApi($client, $config);
+$mosaicInfo = $mosaicApiInstance->getMosaic($targetMosaic);
+$sourceAddress = $mosaicInfo['mosaic']['owner_address']; // モザイク作成者アドレス
 
-key = sym.KeyGenerator.generateUInt64Key('key_mosaic');
-value = 'test';
+$keyId = Metadata::metadataGenerateKey("key_mosaic");
+$newValue = 'test';
 
-tx = await metaService.createMosaicMetadataTransaction(
-  undefined,
-  networkType,
-  mosaicInfo.ownerAddress, //モザイク作成者アドレス
-  mosaicId,
-  key,value, //Key-Value値
-  alice.address
-).toPromise();
+// 同じキーのメタデータが登録されているか確認
+$metadataInfo = $metaApiInstance->searchMetadataEntries(
+  target_id: $targetMosaic,
+  source_address: new UnresolvedAddress($sourceAddress),
+  scoped_metadata_key: strtoupper(dechex($keyId)),  // 16進数の大文字の文字列に変換
+  metadata_type: 1,
+);
 
-aggregateTx = sym.AggregateTransaction.createComplete(
-    sym.Deadline.create(epochAdjustment),
-    [tx.toAggregate(alice.publicAccount)],
-    networkType,[]
-).setMaxFeeForAggregate(100, 0);
+$oldValue = hex2bin($metadataInfo['data'][0]['metadata_entry']['value']); //16進エンコードされたバイナリ文字列をデコード
+$updateValue = Metadata::metadataUpdateValue($oldValue, $newValue, true);
 
-signedTx = alice.sign(aggregateTx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+$tx = new EmbeddedMosaicMetadataTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,  // 署名者公開鍵
+  targetMosaicId: new UnresolvedMosaicId(hexdec($targetMosaic)),
+  targetAddress: new UnresolvedAddress($sourceAddress),
+  scopedMetadataKey: $keyId,
+  valueSizeDelta: strlen($newValue) - strlen($oldValue),
+  value: $updateValue,
+);
+
+// マークルハッシュの算出
+$embeddedTransactions = [$tx];
+$merkleHash = $facade->hashEmbeddedTransactions($embeddedTransactions);
+
+// アグリゲートTx作成
+$aggregateTx = new AggregateCompleteTransactionV2(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  transactionsHash: $merkleHash,
+  transactions: $embeddedTransactions,
+);
+// 手数料
+$facade->setMaxFee($aggregateTx, 100);
+
+// 作成者による署名
+$sig = $aliceKey->signTransaction($aggregateTx);
+$payload =$facade->attachSignature($aggregateTx, $sig);
+
+$apiInstance = new TransactionRoutesApi($client, $config);
+
+// アナウンス
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 
 ## 7.3 ネームスペースに登録
@@ -139,81 +216,160 @@ await txRepo.announce(signedTx).toPromise();
 ネームスペースに対して、Key-Value値を登録します。
 登録・更新にはネームスペースを作成したアカウントの署名が必要です。
 
-```js
-nsRepo = repo.createNamespaceRepository();
-namespaceId = new sym.NamespaceId("xembook");
-namespaceInfo = await nsRepo.getNamespace(namespaceId).toPromise();
+```php
+//ターゲットと作成者アドレスの設定
+$targetNamespace = new NamespaceId(IdGenerator::generateNamespaceId("fugafuga"));
 
-key = sym.KeyGenerator.generateUInt64Key('key_namespace');
-value = 'test';
+$namespaceApiInstance = new NamespaceRoutesApi($client, $config);
+$namespaceInfo = $namespaceApiInstance->getNamespace(substr($targetNamespace, 2));
 
-tx = await metaService.createNamespaceMetadataTransaction(
-    undefined,networkType,
-    namespaceInfo.ownerAddress, //ネームスペースの作成者アドレス
-    namespaceId,
-    key,value, //Key-Value値
-    alice.address //メタデータの登録者
-).toPromise();
+$sourceAddress = new UnresolvedAddress($namespaceInfo['namespace']['owner_address']); // ネームスペース作成者アドレス
 
-aggregateTx = sym.AggregateTransaction.createComplete(
-    sym.Deadline.create(epochAdjustment),
-    [tx.toAggregate(alice.publicAccount)],
-    networkType,[]
-).setMaxFeeForAggregate(100, 0);
+$keyId = Metadata::metadataGenerateKey("key_namespace");
+$newValue = 'test';
 
-signedTx = alice.sign(aggregateTx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+// 同じキーのメタデータが登録されているか確認
+$metadataInfo = $metaApiInstance->searchMetadataEntries(
+  target_id: substr($targetNamespace, 2),
+  source_address: $sourceAddress,
+  scoped_metadata_key: strtoupper(dechex($keyId)),  // 16進数の大文字の文字列に変換
+  metadata_type: 2,
+);
+
+$oldValue = hex2bin($metadataInfo['data'][0]['metadata_entry']['value']); //16進エンコードされたバイナリ文字列をデコード
+$updateValue = Metadata::metadataUpdateValue($oldValue, $newValue, true);
+
+$tx = new EmbeddedNamespaceMetadataTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,  // 署名者公開鍵
+  targetNamespaceId: new NamespaceId($targetNamespace),
+  targetAddress: $sourceAddress,
+  scopedMetadataKey: $keyId,
+  valueSizeDelta: strlen($newValue) - strlen($oldValue),
+  value: $updateValue,
+);
+
+// マークルハッシュの算出
+$embeddedTransactions = [$tx];
+$merkleHash = $facade->hashEmbeddedTransactions($embeddedTransactions);
+
+// アグリゲートTx作成
+$aggregateTx = new AggregateCompleteTransactionV2(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  transactionsHash: $merkleHash,
+  transactions: $embeddedTransactions,
+);
+// 手数料
+$facade->setMaxFee($aggregateTx, 100);
+
+// 作成者による署名
+$sig = $aliceKey->signTransaction($aggregateTx);
+$payload =$facade->attachSignature($aggregateTx, $sig);
+
+$apiInstance = new TransactionRoutesApi($client, $config);
+
+// アナウンス
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 
 ## 7.4 確認
 登録したメタデータを確認します。
 
-```js
-res = await metaRepo.search({
-  targetAddress:alice.address,
-  sourceAddress:alice.address}
-).toPromise();
-console.log(res);
+```php
+$metaApiInstance = new MetadataRoutesApi($client, $config);
+$metadataInfo = $metaApiInstance->searchMetadataEntries(
+  target_address: $aliceKey->address,
+  source_address: $aliceAddress,
+);
+echo "\n===メタデータ一覧===" . PHP_EOL;
+echo $metadataInfo;
 ```
 ###### 出力例
-```js
-data: Array(3)
-  0: Metadata
-    id: "62471DD2BF42F221DFD309D9"
-    metadataEntry: MetadataEntry
-      compositeHash: "617B0F9208753A1080F93C1CEE1A35ED740603CE7CFC21FBAE3859B7707A9063"
-      metadataType: 0
-      scopedMetadataKey: UInt64 {lower: 92350423, higher: 2540877595}
-      sourceAddress: Address {address: 'TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ', networkType: 152}
-      targetAddress: Address {address: 'TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ', networkType: 152}
-      targetId: undefined
-      value: "test"
-  1: Metadata
-    id: "62471F87BF42F221DFD30CC8"
-    metadataEntry: MetadataEntry
-      compositeHash: "D9E2019D7BD5BA58245320392A68B51752E35A35DA349B08E141DCE99AC3655A"
-      metadataType: 1
-      scopedMetadataKey: UInt64 {lower: 1789141730, higher: 3475078673}
-      sourceAddress: Address {address: 'TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ', networkType: 152}
-      targetAddress: Address {address: 'TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ', networkType: 152}
-      targetId: MosaicId
-      id: Id {lower: 1360892257, higher: 309702839}
-      value: "test"
-  3: Metadata
-    id: "62616372BF42F221DF00A88C"
-    metadataEntry: MetadataEntry
-      compositeHash: "D8E597C7B491BF7F9990367C1798B5C993E1D893222F6FC199F98915339D92D5"
-      metadataType: 2
-      scopedMetadataKey: UInt64 {lower: 141807833, higher: 2339015223}
-      sourceAddress: Address {address: 'TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ', networkType: 152}
-      targetAddress: Address {address: 'TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ', networkType: 152}
-      targetId: NamespaceId
-      id: Id {lower: 646738821, higher: 2754876907}
-      value: "test"
+```
+{
+    "data": [
+        {
+            "id": "66A1127884E82060AFC1D36F",
+            "metadataEntry": {
+                "version": 1,
+                "compositeHash": "376909753F88E724C42E0313C3F98F44E3BDA949827E49889AB75125E180DD5B",
+                "sourceAddress": "98E521BD0F024F58E670A023BF3A14F3BECAF0280396BED0",
+                "targetAddress": "98E521BD0F024F58E670A023BF3A14F3BECAF0280396BED0",
+                "scopedMetadataKey": "7FFFFFFFFFFFFFFF",
+                "targetId": {},
+                "metadataType": 0,
+                "value": "74657374"
+            }
+        },
+        {
+            "id": "66A120C284E82060AFC1E5AE",
+            "metadataEntry": {
+                "version": 1,
+                "compositeHash": "77B448E5375D16F44FF3C2E35221759B35438D360BD89DB0679003FFD1E7D9F5",
+                "sourceAddress": "98E521BD0F024F58E670A023BF3A14F3BECAF0280396BED0",
+                "targetAddress": "98E521BD0F024F58E670A023BF3A14F3BECAF0280396BED0",
+                "scopedMetadataKey": "8EF1ED391DB8F32F",
+                "targetId": {},
+                "metadataType": 0,
+                "value": "686F6765"
+            }
+        },
+        {
+            "id": "66A1720784E82060AFC260B5",
+            "metadataEntry": {
+                "version": 1,
+                "compositeHash": "D686E984A60295C57F7D7A350CD2B51A3A55CD67BF4F302DE0E22A39D4E9F9A0",
+                "sourceAddress": "98E521BD0F024F58E670A023BF3A14F3BECAF0280396BED0",
+                "targetAddress": "98E521BD0F024F58E670A023BF3A14F3BECAF0280396BED0",
+                "scopedMetadataKey": "D95FCE92728FA600",
+                "targetId": {},
+                "metadataType": 0,
+                "value": "686F6765"
+            }
+        },
+        {
+            "id": "66A23EE184E82060AFC38CE6",
+            "metadataEntry": {
+                "version": 1,
+                "compositeHash": "DA221A3B4D09C0C1833A7176E73D3CD2C23B2B4A37A3D124399FC9D104D9EC97",
+                "sourceAddress": "98E521BD0F024F58E670A023BF3A14F3BECAF0280396BED0",
+                "targetAddress": "98E521BD0F024F58E670A023BF3A14F3BECAF0280396BED0",
+                "scopedMetadataKey": "CF217E116AA422E2",
+                "targetId": {},
+                "metadataType": 1,
+                "value": "74657374"
+            }
+        },
+        {
+            "id": "66A242D384E82060AFC392DD",
+            "metadataEntry": {
+                "version": 1,
+                "compositeHash": "BB4A767B68E32FE66319BB4DEF98FF23EF1AEE22863DE3E59C04A03F37E9DB7F",
+                "sourceAddress": "98E521BD0F024F58E670A023BF3A14F3BECAF0280396BED0",
+                "targetAddress": "98E521BD0F024F58E670A023BF3A14F3BECAF0280396BED0",
+                "scopedMetadataKey": "8B6A8A370873D0D9",
+                "targetId": {},
+                "metadataType": 2,
+                "value": "74657374"
+            }
+        }
+    ],
+    "pagination": {
+        "pageNumber": 1,
+        "pageSize": 10
+    }
+}
 ```
 metadataTypeは以下の通りです。
 ```js
-sym.MetadataType
+metadataType
 {0: 'Account', 1: 'Mosaic', 2: 'Namespace'}
 ```
 
