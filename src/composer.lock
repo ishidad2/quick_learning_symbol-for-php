@@ -77,16 +77,16 @@
         },
         {
             "name": "guzzlehttp/guzzle",
-            "version": "7.9.1",
+            "version": "7.9.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/guzzle/guzzle.git",
-                "reference": "a629e5b69db96eb4939c1b34114130077dd4c6fc"
+                "reference": "d281ed313b989f213357e3be1a179f02196ac99b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/guzzle/guzzle/zipball/a629e5b69db96eb4939c1b34114130077dd4c6fc",
-                "reference": "a629e5b69db96eb4939c1b34114130077dd4c6fc",
+                "url": "https://api.github.com/repos/guzzle/guzzle/zipball/d281ed313b989f213357e3be1a179f02196ac99b",
+                "reference": "d281ed313b989f213357e3be1a179f02196ac99b",
                 "shasum": ""
             },
             "require": {
@@ -183,7 +183,7 @@
             ],
             "support": {
                 "issues": "https://github.com/guzzle/guzzle/issues",
-                "source": "https://github.com/guzzle/guzzle/tree/7.9.1"
+                "source": "https://github.com/guzzle/guzzle/tree/7.9.2"
             },
             "funding": [
                 {
@@ -199,7 +199,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2024-07-19T16:19:57+00:00"
+            "time": "2024-07-24T11:22:20+00:00"
         },
         {
             "name": "guzzlehttp/promises",
@@ -820,16 +820,16 @@
         },
         {
             "name": "symbol-blockchain-community/symbol-sdk",
-            "version": "v1.0.5",
+            "version": "v1.0.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symbol-blockchain-community/symbol-sdk-php.git",
-                "reference": "321a20a2bad912d95201f9556ec3818d52ab28da"
+                "reference": "d66556ecea04c52fb52cde7c005e8fcd656ca366"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symbol-blockchain-community/symbol-sdk-php/zipball/321a20a2bad912d95201f9556ec3818d52ab28da",
-                "reference": "321a20a2bad912d95201f9556ec3818d52ab28da",
+                "url": "https://api.github.com/repos/symbol-blockchain-community/symbol-sdk-php/zipball/d66556ecea04c52fb52cde7c005e8fcd656ca366",
+                "reference": "d66556ecea04c52fb52cde7c005e8fcd656ca366",
                 "shasum": ""
             },
             "require": {
@@ -861,9 +861,9 @@
             "description": "symbol sdk for php",
             "support": {
                 "issues": "https://github.com/symbol-blockchain-community/symbol-sdk-php/issues",
-                "source": "https://github.com/symbol-blockchain-community/symbol-sdk-php/tree/v1.0.5"
+                "source": "https://github.com/symbol-blockchain-community/symbol-sdk-php/tree/v1.0.6"
             },
-            "time": "2024-07-22T03:24:04+00:00"
+            "time": "2024-07-25T02:53:22+00:00"
         },
         {
             "name": "symfony/deprecation-contracts",
