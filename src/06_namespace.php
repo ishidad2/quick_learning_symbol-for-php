@@ -17,7 +17,6 @@ use SymbolRestClient\Api\ChainRoutesApi;
 use SymbolRestClient\Api\BlockRoutesApi;
 use SymbolRestClient\Api\ReceiptRoutesApi;
 use SymbolSdk\Symbol\Models\NamespaceId;
-use SymbolSdk\Symbol\Models\Address;
 use SymbolSdk\Symbol\Models\AliasAction;
 use SymbolSdk\Symbol\Models\MosaicId;
 use SymbolSdk\Symbol\Models\UnresolvedAddress;
@@ -28,6 +27,7 @@ use SymbolSdk\Symbol\Models\Amount;
 use SymbolSdk\Symbol\IdGenerator;
 use Carbon\Carbon;
 use SymbolSdk\Utils\Converter;
+use SymbolSdk\Symbol\Address;
 
 /**
  * 秘密鍵からアカウント生成
@@ -285,47 +285,35 @@ echo "End Date: " . $endDate . PHP_EOL;
  * 未解決で使用
  */
 
-function processNamespaceId(string $namespaceIdHex, int $networkType): string {
-  $namespaceIdData = Converter::binaryToArray(hex2bin($namespaceIdHex));
-  $namespaceIdData = array_reverse($namespaceIdData);
-  array_unshift($namespaceIdData, $networkType + 1);
-  $namespaceIdData = array_merge($namespaceIdData, array_fill(0, 24 - count($namespaceIdData), 0));
-
-  // バイト配列を文字列に変換
-  return implode(array_map('chr', $namespaceIdData));
-}
-
 // UnresolvedAccount 導出
-// $namespaceId = IdGenerator::generateNamespaceId("fugafuga"); // ルートネームスペース
-// $namespaceIdHex = dechex($namespaceId);
-// $networkType = NetworkType::TESTNET;
-// $unresolvedAccount = processNamespaceId($namespaceIdHex, $networkType);
+$namespaceId = IdGenerator::generateNamespaceId("fugafuga"); // ルートネームスペース
+$address = Address::fromNamespaceId(new NamespaceId($namespaceId), $facade->network->identifier);
 
-// // Tx作成
-// $tx = new TransferTransactionV1(
-//   signerPublicKey: $aliceKey->publicKey,
-//   network: new NetworkType($networkType),
-//   deadline: new Timestamp($facade->now()->addHours(2)),
-//   recipientAddress: new UnresolvedAddress($unresolvedAccount),
-//   message: ''
-// );
-// $facade->setMaxFee($tx, 100);
+// Tx作成
+$tx = new TransferTransactionV1(
+  signerPublicKey: $aliceKey->publicKey,
+  network: new NetworkType($networkType),
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  recipientAddress: new UnresolvedAddress($address),
+  message: ''
+);
+$facade->setMaxFee($tx, 100);
 
-// //署名
-// $sig = $aliceKey->signTransaction($tx);
-// $payload = $facade->attachSignature($tx, $sig);
+//署名
+$sig = $aliceKey->signTransaction($tx);
+$payload = $facade->attachSignature($tx, $sig);
 
-// $apiInstance = new TransactionRoutesApi($client, $config);
+$apiInstance = new TransactionRoutesApi($client, $config);
 
-// try {
-//   $result = $apiInstance->announceTransaction($payload);
-//   echo $result . PHP_EOL;
-// } catch (Exception $e) {
-//   echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
-// }
-// $hash = $facade->hashTransaction($tx);
-// echo "\n===トランザクションハッシュ===" . PHP_EOL;
-// echo $hash . PHP_EOL;
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
+$hash = $facade->hashTransaction($tx);
+echo "\n===トランザクションハッシュ===" . PHP_EOL;
+echo $hash . PHP_EOL;
 
 /**
  * 送信モザイク

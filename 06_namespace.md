@@ -248,21 +248,10 @@ try {
 v3 ではネームスペースを直接指定できないため、アドレスを特定しないまま操作する場合はデータを加工する必要があります。
 
 ```php
-function processNamespaceId(string $namespaceIdHex, int $networkType): string {
-  $namespaceIdData = Converter::binaryToArray(hex2bin($namespaceIdHex));
-  $namespaceIdData = array_reverse($namespaceIdData);
-  array_unshift($namespaceIdData, $networkType + 1);
-  $namespaceIdData = array_merge($namespaceIdData, array_fill(0, 24 - count($namespaceIdData), 0));
-
-  // バイト配列を文字列に変換
-  return implode(array_map('chr', $namespaceIdData));
-}
 
 // UnresolvedAccount 導出
 $namespaceId = IdGenerator::generateNamespaceId("xembook"); // ルートネームスペース
-$namespaceIdHex = dechex($namespaceId);
-$networkType = NetworkType::TESTNET;
-$unresolvedAccount = processNamespaceId($namespaceIdHex, $networkType);
+$address = Address::fromNamespaceId(new NamespaceId($namespaceId), $facade->network->identifier);
 
 // Tx作成
 $tx = new TransferTransactionV1(
