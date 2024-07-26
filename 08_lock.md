@@ -1,6 +1,6 @@
 # 8.ロック
 
-Symbolブロックチェーンにはハッシュロックとシークレットロックの２種類のロック機構があります。  
+Symbolブロックチェーンにはハッシュロックとシークレットロックの２種類のロック機構があります。
 
 ## 8.1 ハッシュロック
 
@@ -11,45 +11,71 @@ Symbolブロックチェーンにはハッシュロックとシークレット�
 
 ### アグリゲートボンデッドトランザクションの作成
 
-```js
-bob = sym.Account.generateNewAccount(networkType);
+```php
+$bobKey = $facade->createAccount(new PrivateKey("ED949592C90CA58A16CB5BEC303DB011A48373063DDB0C4CFD6DFD01F********"));
+$bobAddress = $bobKey->address;
 
-tx1 = sym.TransferTransaction.create(
-    undefined,
-    bob.address,  //Bobへの送信
-    [ //1XYM
-      new sym.Mosaic(
-        new sym.NamespaceId("symbol.xym"),
-        sym.UInt64.fromUint(1000000)
-      )
-    ],
-    sym.EmptyMessage, //メッセージ無し
-    networkType
+$namespaceIds = IdGenerator::generateNamespacePath('symbol.xym');
+$namespaceId = new NamespaceId($namespaceIds[count($namespaceIds) - 1]);
+
+// アグリゲートTxに含めるTxを作成
+$tx1 = new EmbeddedTransferTransactionV1(
+  signerPublicKey: $aliceKey->publicKey,
+  recipientAddress: $bobAddress,
+  mosaics: [
+    new UnresolvedMosaic(
+      mosaicId: new UnresolvedMosaicId($namespaceId), // モザイクID
+      amount: new Amount(1000000) // 金額(1XYM)
+    )
+  ],
+  message: "",  //メッセージなし
 );
 
-tx2 = sym.TransferTransaction.create(
-    undefined,
-    alice.address,  // Aliceへの送信
-    [],
-    sym.PlainMessage.create('thank you!'), //メッセージ
-    networkType
+$tx2 = new EmbeddedTransferTransactionV1(
+  signerPublicKey: $bobKey->publicKey,
+  recipientAddress: $aliceKey->address,
+  message: "\0thank you!",
 );
 
-aggregateArray = [
-    tx1.toAggregate(alice.publicAccount), //Aliceからの送信
-    tx2.toAggregate(bob.publicAccount), // Bobからの送信
-]
+// マークルハッシュの算出
+$embeddedTransactions = [$tx1, $tx2];
+$merkleHash = $facade->hashEmbeddedTransactions($embeddedTransactions);
 
-//アグリゲートボンデッドトランザクション
-aggregateTx = sym.AggregateTransaction.createBonded(
-    sym.Deadline.create(epochAdjustment),
-    aggregateArray,
-    networkType,
-    [],
-).setMaxFeeForAggregate(100, 1);
+// アグリゲートボンデットTx作成
+$aggregateTx = new AggregateBondedTransactionV2(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,  // 署名者公開鍵
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  transactionsHash: $merkleHash,
+  transactions: $embeddedTransactions
+);
+$facade->setMaxFee($aggregateTx, 100, 1);  // 手数料
 
-//署名
-signedAggregateTx = alice.sign(aggregateTx, generationHash);
+// 署名
+$sig = $aliceKey->signTransaction($aggregateTx);
+$payload = $facade->attachSignature($aggregateTx, $sig);
+echo 'アグリゲートボンデットTxHash' . PHP_EOL;
+echo $facade->hashTransaction($aggregateTx) . PHP_EOL;
+
+/**
+ * ハッシュロック
+ */
+$hashLockTx = new HashLockTransactionV1(
+  signerPublicKey: $aliceKey->publicKey,  // 署名者公開鍵
+  network: new NetworkType(NetworkType::TESTNET),
+  deadline: new Timestamp($facade->now()->addHours(2)), // 有効期限
+  duration: new BlockDuration(480), // 有効期限
+  hash: new Hash256($facade->hashTransaction($aggregateTx)), // ペイロードのハッシュ
+  mosaic: new UnresolvedMosaic(
+    mosaicId: new UnresolvedMosaicId($namespaceId), // モザイクID
+    amount: new Amount(10 * 1000000) // 金額(10XYM)
+  )
+);
+$facade->setMaxFee($hashLockTx, 100);  // 手数料
+
+// 署名
+$hashLockSig = $aliceKey->signTransaction($hashLockTx);
+$hashLockJsonPayload = $facade->attachSignature($hashLockTx, $hashLockSig);
 ```
 
 tx1,tx2の2つのトランザクションをaggregateArrayで配列にする時に、送信元アカウントの公開鍵を指定します。
@@ -59,28 +85,53 @@ tx1,tx2の2つのトランザクションをaggregateArrayで配列にする時�
 また、アグリゲートトランザクションの中に1つでも整合性の合わないトランザクションが存在していると、アグリゲートトランザクション全体がエラーとなってチェーンに承認されることはありません。
 
 ### ハッシュロックトランザクションの作成と署名、アナウンス
-```js
+```php
+
 //ハッシュロックTX作成
-hashLockTx = sym.HashLockTransaction.create(
-  sym.Deadline.create(epochAdjustment),
-    new sym.Mosaic(new sym.NamespaceId("symbol.xym"),sym.UInt64.fromUint(10 * 1000000)), //10xym固定値
-    sym.UInt64.fromUint(480), // ロック有効期限
-    signedAggregateTx,// このハッシュ値を登録
-    networkType
-).setMaxFee(100);
+$hashLockTx = new HashLockTransactionV1(
+  signerPublicKey: $aliceKey->publicKey,  // 署名者公開鍵
+  network: new NetworkType(NetworkType::TESTNET),
+  deadline: new Timestamp($facade->now()->addHours(2)), // 有効期限
+  duration: new BlockDuration(480), // 有効期限
+  hash: new Hash256($facade->hashTransaction($aggregateTx)), // ペイロードのハッシュ
+  mosaic: new UnresolvedMosaic(
+    mosaicId: new UnresolvedMosaicId($namespaceId), // モザイクID
+    amount: new Amount(10 * 1000000) // 金額(10XYM)
+  )
+);
+$facade->setMaxFee($hashLockTx, 100);  // 手数料
 
-//署名
-signedLockTx = alice.sign(hashLockTx, generationHash);
+// 署名
+$hashLockSig = $aliceKey->signTransaction($hashLockTx);
+$hashLockJsonPayload = $facade->attachSignature($hashLockTx, $hashLockSig);
 
-//ハッシュロックTXをアナウンス
-await txRepo.announce(signedLockTx).toPromise();
+/**
+ * ハッシュロックをアナウンス
+ */
+$config = new Configuration();
+$config->setHost($NODE_URL);
+$client = new GuzzleHttp\Client();
+$apiInstance = new TransactionRoutesApi($client, $config);
+
+try {
+  $result = $apiInstance->announceTransaction($hashLockJsonPayload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 
 ### アグリゲートボンデッドトランザクションのアナウンス
 
 エクスプローラーなどで確認した後、ボンデッドトランザクションをネットワークにアナウンスします。
-```js
-await txRepo.announceAggregateBonded(signedAggregateTx).toPromise();
+```php
+try {
+  $result = $apiInstance->announcePartialTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
+
 ```
 
 
