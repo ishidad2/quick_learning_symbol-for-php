@@ -2,6 +2,7 @@
     "require": {
         "symbol-blockchain-community/symbol-sdk": "*",
         "symbol-blockchain-community/symbol-rest-client": "*",
-        "nesbot/carbon": "^2.72"
+        "nesbot/carbon": "^2.72",
+        "symfony/polyfill-php70": "^1.20"
     }
 }

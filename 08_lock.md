@@ -138,11 +138,31 @@ try {
 ### 連署
 ロックされたトランザクションを指定されたアカウント(Bob)で連署します。
 
-```js
-txInfo = await txRepo.getTransaction(signedAggregateTx.hash,sym.TransactionGroup.Partial).toPromise();
-cosignatureTx = sym.CosignatureTransaction.create(txInfo);
-signedCosTx = bob.signCosignatureTransaction(cosignatureTx);
-await txRepo.announceAggregateBondedCosignature(signedCosTx).toPromise();
+```php
+$txInfo = $apiInstance->getPartialTransaction($facade->hashTransaction($aggregateTx));
+
+// 連署者の連署
+$txInfo = $apiInstance->getPartialTransaction($facade->hashTransaction($aggregateTx));
+
+// // 連署者の連署
+$signTxHash = new Hash256($txInfo->getMeta()->getHash());
+$signature = new Signature($bobKey->keyPair->sign($signTxHash->binaryData));
+$body = [
+    'parentHash' => $signTxHash->__toString(),
+    'signature' => $signature->__toString(),
+    'signerPublicKey' => $bobKey->publicKey->__toString(),
+    'version' => '0'
+];
+
+print_r($body);
+
+//アナウンス
+try {
+  $result = $apiInstance->announceCosignatureTransaction($body);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 
 ### 注意点
@@ -160,55 +180,68 @@ await txRepo.announceAggregateBondedCosignature(signedCosTx).toPromise();
 
 ここではAliceが1XYMをロックしてBobが解除することで受信する方法を説明します。
 
-まずはAliceとやり取りするBobアカウントを作成します。
 ロック解除にBob側からトランザクションをアナウンスする必要があるのでFAUCETで10XYMほど受信しておきます。
 
-```js
-bob = sym.Account.generateNewAccount(networkType);
-console.log(bob.address);
-
+```
 //FAUCET URL出力
-console.log("https://testnet.symbol.tools/?recipient=" + bob.address.plain() +"&amount=10");
+echo "https://testnet.symbol.tools/?recipient=" . $bobAddress . "&amount=10";
 ```
 
 ### シークレットロック
 
 ロック・解除にかかわる共通暗号を作成します。
 
-```js
-sha3_256 = require('/node_modules/js-sha3').sha3_256;
+PHPではSHA3-256ハッシュ関数を提供するライブラリをインストールします。
 
-random = sym.Crypto.randomBytes(20);
-hash = sha3_256.create();
-secret = hash.update(random).hex(); //ロック用キーワード
-proof = random.toString('hex'); //解除用キーワード
-console.log("secret:" + secret);
-console.log("proof:" + proof);
+```bash
+composer require symfony/polyfill-php70
+```
+
+```php
+require 'vendor/autoload.php';
+
+use Symfony\Polyfill\Php70\Php70;
+
+$proof = random_bytes(20); // 解除用キーワード
+$secret = hash('sha3-256', $proof, true); // ロック用キーワード
+
+echo "secret: " . bin2hex($secret) . PHP_EOL;
+echo "proof: " . bin2hex($proof) . PHP_EOL;
 ```
 
 ###### 出力例
-```js
-> secret:f260bfb53478f163ee61ee3e5fb7cfcaf7f0b663bc9dd4c537b958d4ce00e240
-  proof:7944496ac0f572173c2549baf9ac18f893aab6d0
+```
+secret: 40eb770de739fa22617e8f2212b1fe821107e97f32a2c288264e0ccb644610f1
+proof: 1f62d5bdfbffb657d5c4a67d5d2f5617aec14c43
 ```
 
 トランザクションを作成・署名・アナウンスします
-```js
-lockTx = sym.SecretLockTransaction.create(
-    sym.Deadline.create(epochAdjustment),
-    new sym.Mosaic(
-      new sym.NamespaceId("symbol.xym"),
-      sym.UInt64.fromUint(1000000) //1XYM
-    ), //ロックするモザイク
-    sym.UInt64.fromUint(480), //ロック期間(ブロック数)
-    sym.LockHashAlgorithm.Op_Sha3_256, //ロックキーワード生成に使用したアルゴリズム
-    secret, //ロック用キーワード
-    bob.address, //解除時の転送先:Bob
-    networkType
-).setMaxFee(100);
+```php
+$lockTx = new SecretLockTransactionV1(
+  signerPublicKey: $aliceKey->publicKey,  // 署名者公開鍵
+  deadline: new Timestamp($facade->now()->addHours(2)), // 有効期限
+  network: new NetworkType(NetworkType::TESTNET),
+  mosaic: new UnresolvedMosaic(
+    mosaicId: new UnresolvedMosaicId($namespaceId), // モザイクID
+    amount: new Amount(1000000) // ロックするモザイク
+  ),
+  duration: new BlockDuration(480), //ロック期間
+  hashAlgorithm: new LockHashAlgorithm(LockHashAlgorithm::SHA3_256), // ハッシュアルゴリズム
+  secret: new Hash256($secret), // ロック用キーワード
+  recipientAddress: $bobAddress, // 解除時の転送先：Bob
+);
+$facade->setMaxFee($lockTx, 100);  // 手数料
 
-signedLockTx = alice.sign(lockTx,generationHash);
-await txRepo.announce(signedLockTx).toPromise();
+// 署名
+$lockSig = $aliceKey->signTransaction($lockTx);
+$payload = $facade->attachSignature($lockTx, $lockSig);
+
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 
 LockHashAlgorithmは以下の通りです。
@@ -220,25 +253,35 @@ LockHashAlgorithmは以下の通りです。
 ロック期間は最長で365日(ブロック数を日換算)までです。
 
 承認されたトランザクションを確認します。
-```js
-slRepo = repo.createSecretLockRepository();
-res = await slRepo.search({secret:secret}).toPromise();
-console.log(res.data[0]);
+```php
+$secretAipInstance = new SecretLockRoutesApi($client, $config);
+$resutl = $secretAipInstance->searchSecretLock(secret: $secret);
 ```
 ###### 出力例
-```js
-> SecretLockInfo
-    amount: UInt64 {lower: 1000000, higher: 0}
-    compositeHash: "770F65CB0CC0CA17370DE961B2AA5B48B8D86D6DB422171AB00DF34D19DEE2F1"
-    endHeight: UInt64 {lower: 323495, higher: 0}
-    hashAlgorithm: 0
-    mosaicId: MosaicId {id: Id}
-    ownerAddress: Address {address: 'TBXUTAX6O6EUVPB6X7OBNX6UUXBMPPAFX7KE5TQ', networkType: 152}
-    recipientAddress: Address {address: 'TBTWKXCNROT65CJHEBPL7F6DRHX7UKSUPD7EUGA', networkType: 152}
-    recordId: "6260A1D3205E94BEA3D9E3E9"
-    secret: "F260BFB53478F163EE61EE3E5FB7CFCAF7F0B663BC9DD4C537B958D4CE00E240"
-    status: 0
-    version: 1
+```
+{
+    "data": [
+        {
+            "id": "66A4247084E82060AFC6705C",
+            "lock": {
+                "version": 1,
+                "ownerAddress": "98E521BD0F024F58E670A023BF3A14F3BECAF0280396BED0",
+                "mosaicId": "72C0212E67A08BCE",
+                "amount": "1000000",
+                "endHeight": "1607702",
+                "status": 0,
+                "hashAlgorithm": 0,
+                "secret": "A8E4F52ADDA0AFCD413D86A51589711CF045F144EEE56FC9CE96095D6AB79E9E",
+                "recipientAddress": "98665DDAC8CCF6EE40B1D50800DC8C6C27B314988A1FDB26",
+                "compositeHash": "57541680B0E2DFAE504A6937AAB6A65A7008C25F905FCA68A24C21165314023C"
+            }
+        }
+    ],
+    "pagination": {
+        "pageNumber": 1,
+        "pageSize": 10
+    }
+}
 ```
 ロックしたAliceがownerAddress、受信予定のBobがrecipientAddressに記録されています。
 secret情報が公開されていて、これに対応するproofをBobがネットワークに通知します。
@@ -249,71 +292,197 @@ secret情報が公開されていて、これに対応するproofをBobがネッ
 解除用キーワードを使用してロック解除します。
 Bobは事前に解除用キーワードを入手しておく必要があります。
 
-```js
-proofTx = sym.SecretProofTransaction.create(
-    sym.Deadline.create(epochAdjustment),
-    sym.LockHashAlgorithm.Op_Sha3_256, //ロック作成に使用したアルゴリズム
-    secret, //ロックキーワード
-    bob.address, //解除アカウント（受信アカウント）
-    proof, //解除用キーワード
-    networkType
-).setMaxFee(100);
+```php
+$proofTx = new SecretProofTransactionV1(
+  signerPublicKey: $bobKey->publicKey,  // 署名者公開鍵
+  deadline: new Timestamp($facade->now()->addHours(2)), // 有効期限
+  network: new NetworkType(NetworkType::TESTNET),
+  hashAlgorithm: new LockHashAlgorithm(LockHashAlgorithm::SHA3_256), // ハッシュアルゴリズム
+  secret: new Hash256($secret), // ロック用キーワード
+  recipientAddress: $bobAddress, // 解除時の転送先：Alice
+  proof: $proof, // 解除用キーワード
+);
+$facade->setMaxFee($proofTx, 100);  // 手数料
 
-signedProofTx = bob.sign(proofTx,generationHash);
-await txRepo.announce(signedProofTx).toPromise();
+// 署名
+$proofSig = $bobKey->signTransaction($proofTx);
+$payload = $facade->attachSignature($proofTx, $proofSig);
+
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 
 承認結果を確認します。
 ```js
-txInfo = await txRepo.getTransaction(signedProofTx.hash,sym.TransactionGroup.Confirmed).toPromise();
-console.log(txInfo);
+$txInfo = $apiInstance->getConfirmedTransaction($facade->hashTransaction($proofTx));
+echo $txInfo;
 ```
 ###### 出力例
-```js
-> SecretProofTransaction
-  > deadline: Deadline {adjustedValue: 12669305546}
-    hashAlgorithm: 0
-    maxFee: UInt64 {lower: 20700, higher: 0}
-    networkType: 152
-    payloadSize: 207
-    proof: "A6431E74005585779AD5343E2AC5E9DC4FB1C69E"
-    recipientAddress: Address {address: 'TBTWKXCNROT65CJHEBPL7F6DRHX7UKSUPD7EUGA', networkType: 152}
-    secret: "4C116F32D986371D6BCC44CE64C970B6567686E79850E4A4112AF869580B7C3C"
-    signature: "951F440860E8F24F6F3AB8EC670A3D448B12D75AB954012D9DB70030E31DA00B965003D88B7B94381761234D5A66BE989B5A8009BB234716CA3E5847C33F7005"
-    signer: PublicAccount {publicKey: '9DC9AE081DF2E76554084DFBCCF2BC992042AA81E8893F26F8504FCED3692CFB', address: Address}
-  > transactionInfo: TransactionInfo
-        hash: "85044FF702A6966AB13D05DBE4AC4C3A13520C7381F32540429987C207B2056B"
-        height: UInt64 {lower: 323805, higher: 0}
-        id: "6260CC7F60EE2B0EA10CCEDA"
-        merkleComponentHash: "85044FF702A6966AB13D05DBE4AC4C3A13520C7381F32540429987C207B2056B"
-    type: 16978
+```
+{
+    "id": "66A429D1527B051AC20AE9B3",
+    "meta": {
+        "height": "1607263",
+        "hash": "91387B92117ACE7A6BB5596720DAEC6FEA89E42076BD40320381CE1A86C0D57D",
+        "merkleComponentHash": "91387B92117ACE7A6BB5596720DAEC6FEA89E42076BD40320381CE1A86C0D57D",
+        "index": 1,
+        "timestamp": "54784174665",
+        "feeMultiplier": 100
+    },
+    "transaction": {
+        "size": 207,
+        "signature": "52CFCE339A361AED998B12EC7B4976542F5F413694BD6E9395DB37C980977839FE2ABEBF577C78CFCA065F0E9C2D72228859B830B75FEBC64551396FAE1D7B00",
+        "signerPublicKey": "D47E477DA7CAE6127779523270F91BD000D7D0E06DA56192FE911460DC39081C",
+        "version": 1,
+        "network": 152,
+        "type": 16978,
+        "maxFee": "20700",
+        "deadline": "54791351985",
+        "recipientAddress": "98665DDAC8CCF6EE40B1D50800DC8C6C27B314988A1FDB26",
+        "secret": "2F63B181A3C0A9C549F13492D9A8A3D6851B911F813A4C4D70539A0BE55D277D",
+        "hashAlgorithm": 0,
+        "proof": "86D75E3321D5EE227E14C3CFD67E378EB3F3FD64"
+    }
+}
 ```
 
 SecretProofTransactionにはモザイクの受信量の情報は含まれていません。
 ブロック生成時に作成されるレシートで受信量を確認します。
 レシートタイプ:LockSecret_Completed でBob宛のレシートを検索してみます。
 
-```js
-receiptRepo = repo.createReceiptRepository();
-
-receiptInfo = await receiptRepo.searchReceipts({
-    receiptType:sym.LockSecret_Completed,
-    targetAddress:bob.address
-}).toPromise();
-console.log(receiptInfo.data);
+```php
+$receiptApiInstance = new ReceiptRoutesApi($client, $config);
+$result = $receiptApiInstance->searchReceipts(
+  receipt_type: new ReceiptType(ReceiptType::LOCK_SECRET_COMPLETED),
+  target_address:$bobAddress
+);
+echo 'レシート' . PHP_EOL;
+echo $result . PHP_EOL;
 ```
 ###### 出力例
-```js
-> data: Array(1)
-  >  0: TransactionStatement
-        height: UInt64 {lower: 323805, higher: 0}
-     >  receipts: Array(1)
-          > 0: BalanceChangeReceipt
-                amount: UInt64 {lower: 1000000, higher: 0}
-            > mosaicId: MosaicId
-                  id: Id {lower: 760461000, higher: 981735131}
-              targetAddress: Address {address: 'TBTWKXCNROT65CJHEBPL7F6DRHX7UKSUPD7EUGA', networkType: 152}
-              type: 8786
+```
+{
+    "data": [
+        {
+            "id": "66A428AC527B051AC20AE98E",
+            "meta": {
+                "timestamp": "54783880862"
+            },
+            "statement": {
+                "height": "1607253",
+                "source": {
+                    "primaryId": 2,
+                    "secondaryId": 0
+                },
+                "receipts": [
+                    {
+                        "version": 1,
+                        "type": 8786,
+                        "mosaicId": "72C0212E67A08BCE",
+                        "amount": "1000000",
+                        "targetAddress": "98665DDAC8CCF6EE40B1D50800DC8C6C27B314988A1FDB26"
+                    }
+                ]
+            }
+        },
+        {
+            "id": "66A428D2527B051AC20AE996",
+            "meta": {
+                "timestamp": "54783918766"
+            },
+            "statement": {
+                "height": "1607254",
+                "source": {
+                    "primaryId": 2,
+                    "secondaryId": 0
+                },
+                "receipts": [
+                    {
+                        "version": 1,
+                        "type": 8786,
+                        "mosaicId": "72C0212E67A08BCE",
+                        "amount": "1000000",
+                        "targetAddress": "98665DDAC8CCF6EE40B1D50800DC8C6C27B314988A1FDB26"
+                    }
+                ]
+            }
+        },
+        {
+            "id": "66A42992527B051AC20AE9AC",
+            "meta": {
+                "timestamp": "54784111700"
+            },
+            "statement": {
+                "height": "1607261",
+                "source": {
+                    "primaryId": 2,
+                    "secondaryId": 0
+                },
+                "receipts": [
+                    {
+                        "version": 1,
+                        "type": 8786,
+                        "mosaicId": "72C0212E67A08BCE",
+                        "amount": "1000000",
+                        "targetAddress": "98665DDAC8CCF6EE40B1D50800DC8C6C27B314988A1FDB26"
+                    }
+                ]
+            }
+        },
+        {
+            "id": "66A429D1527B051AC20AE9B7",
+            "meta": {
+                "timestamp": "54784174665"
+            },
+            "statement": {
+                "height": "1607263",
+                "source": {
+                    "primaryId": 2,
+                    "secondaryId": 0
+                },
+                "receipts": [
+                    {
+                        "version": 1,
+                        "type": 8786,
+                        "mosaicId": "72C0212E67A08BCE",
+                        "amount": "1000000",
+                        "targetAddress": "98665DDAC8CCF6EE40B1D50800DC8C6C27B314988A1FDB26"
+                    }
+                ]
+            }
+        },
+        {
+            "id": "66A42B8F527B051AC20AE9D6",
+            "meta": {
+                "timestamp": "54784619386"
+            },
+            "statement": {
+                "height": "1607275",
+                "source": {
+                    "primaryId": 2,
+                    "secondaryId": 0
+                },
+                "receipts": [
+                    {
+                        "version": 1,
+                        "type": 8786,
+                        "mosaicId": "72C0212E67A08BCE",
+                        "amount": "1000000",
+                        "targetAddress": "98665DDAC8CCF6EE40B1D50800DC8C6C27B314988A1FDB26"
+                    }
+                ]
+            }
+        }
+    ],
+    "pagination": {
+        "pageNumber": 1,
+        "pageSize": 10
+    }
+}
 ```
 
 ReceiptTypeは以下の通りです。
