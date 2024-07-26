@@ -523,7 +523,7 @@ $receiptApiInstance = new ReceiptRoutesApi($client, $config);
 $state = $receiptApiInstance->searchAddressResolutionStatements(
   height: 1600481
 );
-var_dump($state);
+echo $state;
 ```
 ###### 出力例
 ```
@@ -536,14 +536,14 @@ var_dump($state);
             },
             "statement": {
                 "height": "1600481",
-                "unresolved": {},
+                "unresolved": "99D3DD3B003A7B70E6000000000000000000000000000000",
                 "resolutionEntries": [
                     {
                         "source": {
                             "primaryId": 1,
                             "secondaryId": 0
                         },
-                        "resolved": {}
+                        "resolved": "98E521BD0F024F58E670A023BF3A14F3BECAF0280396BED0"
                     }
                 ]
             }
