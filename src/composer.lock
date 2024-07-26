@@ -761,16 +761,16 @@
         },
         {
             "name": "symbol-blockchain-community/symbol-rest-client",
-            "version": "v1.0.0",
+            "version": "v1.0.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symbol-blockchain-community/symbol-rest-client-php.git",
-                "reference": "48b2a258fd90b935b4634cb4c9293b18ef7b5849"
+                "reference": "fa11f5852e04a1db658f388931f5b4c4fdf6c291"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symbol-blockchain-community/symbol-rest-client-php/zipball/48b2a258fd90b935b4634cb4c9293b18ef7b5849",
-                "reference": "48b2a258fd90b935b4634cb4c9293b18ef7b5849",
+                "url": "https://api.github.com/repos/symbol-blockchain-community/symbol-rest-client-php/zipball/fa11f5852e04a1db658f388931f5b4c4fdf6c291",
+                "reference": "fa11f5852e04a1db658f388931f5b4c4fdf6c291",
                 "shasum": ""
             },
             "require": {
@@ -793,16 +793,15 @@
             },
             "notification-url": "https://packagist.org/downloads/",
             "license": [
-                "unlicense"
+                "MIT"
             ],
             "authors": [
                 {
-                    "name": "OpenAPI",
-                    "homepage": "https://openapi-generator.tech"
+                    "name": "symbol-blockchain-community",
+                    "email": "symboljapanforumcommunity@gmail.com"
                 }
             ],
             "description": "OpenAPI Specification of catapult-rest",
-            "homepage": "https://openapi-generator.tech",
             "keywords": [
                 "api",
                 "openapi",
@@ -814,9 +813,9 @@
             ],
             "support": {
                 "issues": "https://github.com/symbol-blockchain-community/symbol-rest-client-php/issues",
-                "source": "https://github.com/symbol-blockchain-community/symbol-rest-client-php/tree/v1.0.0"
+                "source": "https://github.com/symbol-blockchain-community/symbol-rest-client-php/tree/v1.0.1"
             },
-            "time": "2024-07-04T06:17:23+00:00"
+            "time": "2024-07-26T04:02:41+00:00"
         },
         {
             "name": "symbol-blockchain-community/symbol-sdk",
