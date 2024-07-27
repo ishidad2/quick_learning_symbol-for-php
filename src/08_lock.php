@@ -41,7 +41,7 @@ $apiInstance = new TransactionRoutesApi($client, $config);
  * アグロゲートボンデットトランザクションの作成
  */
 // $bobKey = $facade->createAccount(PrivateKey::random());
-$bobKey = $facade->createAccount(new PrivateKey("ED949592C90CA58A16CB5BEC303DB011A48373063DDB0C4CFD6DFD01F14A9007"));
+$bobKey = $facade->createAccount(new PrivateKey("ED949592C90CA58A16CB5BEC303DB011A48373063DDB0C4CFD6DF***********"));
 $bobAddress = $bobKey->address;
 
 $namespaceIds = IdGenerator::generateNamespacePath('symbol.xym');
