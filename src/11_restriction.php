@@ -255,7 +255,7 @@ $carolMosaicAddressResTx = new MosaicAddressRestrictionTransactionV1(
   mosaicId: new UnresolvedMosaicId('0x10FE6A79F72DB356'),
   // mosaicId: new UnresolvedMosaicId($mosaicId['id']),
   restrictionKey: $keyId,
-  // previousRestrictionValue: 0,
+  previousRestrictionValue: (int)base_convert('ffffffffffffffff', 16, 10),
   newRestrictionValue: 1,
   targetAddress: $carolKey->address,
 );
