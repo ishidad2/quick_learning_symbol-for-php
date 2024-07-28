@@ -1,4 +1,6 @@
 <?php
+require_once(__DIR__ . '/util.php');
+use SymbolRestClient\Api\RestrictionMosaicRoutesApi;
 use SymbolRestClient\Model\EmbeddedMosaicGlobalRestrictionTransactionDTO;
 use SymbolRestClient\Model\MosaicGlobalRestrictionEntryRestrictionDTO;
 use SymbolSdk\Symbol\Models\AggregateCompleteTransactionV2;
@@ -6,7 +8,8 @@ use SymbolSdk\Symbol\Models\EmbeddedMosaicGlobalRestrictionTransactionV1;
 use SymbolSdk\Symbol\Models\MosaicAddressRestrictionTransactionV1;
 use SymbolSdk\Symbol\Models\MosaicId;
 use SymbolSdk\Symbol\Models\MosaicRestrictionType;
-require_once(__DIR__ . '/util.php');
+use SymbolSdk\Symbol\Models\TransferTransactionV1;
+use SymbolSdk\Symbol\Models\UnresolvedMosaic;
 use SymbolRestClient\Api\RestrictionAccountRoutesApi;
 use SymbolSdk\Symbol\Models\Amount;
 use SymbolSdk\Symbol\Models\BlockDuration;
@@ -105,7 +108,7 @@ echo 'Address: ' . $bobAddress . PHP_EOL;
 //   ],  // 設定モザイク
 //   restrictionDeletions:[] // 削除モザイク
 // );
-// $facade->setMaxFee($tx, 1000);
+// $facade->setMaxFee($tx, 100);
 
 // // 署名
 // $sig = $carolKey->signTransaction($tx);
@@ -167,7 +170,7 @@ echo 'Address: ' . $bobAddress . PHP_EOL;
 echo 'Carol' . PHP_EOL;
 echo 'Address: ' . $carolKey->address . PHP_EOL;
 
-// // モザイクフラグ設定
+// モザイクフラグ設定
 // $f = MosaicFlags::NONE;
 // $f += MosaicFlags::SUPPLY_MUTABLE; // 供給量変更可能
 // $f += MosaicFlags::TRANSFERABLE; // 第三者への譲渡可否
@@ -248,29 +251,122 @@ echo 'Address: ' . $carolKey->address . PHP_EOL;
 $keyId = Metadata::metadataGenerateKey("KYC"); // restrictionKey
 
 // carolに適用
-$carolMosaicAddressResTx = new MosaicAddressRestrictionTransactionV1(
-  network: new NetworkType(NetworkType::TESTNET),
-  signerPublicKey: $carolKey->publicKey,
-  deadline: new Timestamp($facade->now()->addHours(2)),
-  mosaicId: new UnresolvedMosaicId('0x10FE6A79F72DB356'),
-  // mosaicId: new UnresolvedMosaicId($mosaicId['id']),
-  restrictionKey: $keyId,
-  previousRestrictionValue: (int)base_convert('ffffffffffffffff', 16, 10),
-  newRestrictionValue: 1,
-  targetAddress: $carolKey->address,
+// $carolMosaicAddressResTx = new MosaicAddressRestrictionTransactionV1(
+//   network: new NetworkType(NetworkType::TESTNET),
+//   signerPublicKey: $carolKey->publicKey,
+//   deadline: new Timestamp($facade->now()->addHours(2)),
+//   mosaicId: new UnresolvedMosaicId('0x51E212A3D485C85F'),
+//   restrictionKey: $keyId,
+//   previousRestrictionValue: -1, // 以前のリストリクション値がなく、新規に値を設定する場合
+//   newRestrictionValue: 1,
+//   targetAddress: $carolKey->address,
+// );
+// $facade->setMaxFee($carolMosaicAddressResTx, 100);
+
+
+// // 署名
+// $sig = $carolKey->signTransaction($carolMosaicAddressResTx);
+// $jsonPayload = $facade->attachSignature($carolMosaicAddressResTx, $sig);
+
+// try {
+//   $result = $apiInstance->announceTransaction($jsonPayload);
+//   echo $result . PHP_EOL;
+// } catch (Exception $e) {
+//   echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+// }
+// echo 'TxHash' . PHP_EOL;
+// echo $facade->hashTransaction($carolMosaicAddressResTx) . PHP_EOL;
+
+// // bobに適用
+// $bobMosaicAddressResTx = new MosaicAddressRestrictionTransactionV1(
+//   network: new NetworkType(NetworkType::TESTNET),
+//   signerPublicKey: $carolKey->publicKey,
+//   deadline: new Timestamp($facade->now()->addHours(2)),
+//   mosaicId: new UnresolvedMosaicId('0x51E212A3D485C85F'),
+//   restrictionKey: $keyId,
+//   previousRestrictionValue: -1, // 以前のリストリクション値がなく、新規に値を設定する場合
+//   newRestrictionValue: 1,
+//   targetAddress: $bobKey->address,
+// );
+// $facade->setMaxFee($bobMosaicAddressResTx, 100);
+
+// // 署名
+// $sig = $carolKey->signTransaction($bobMosaicAddressResTx);
+// $jsonPayload = $facade->attachSignature($bobMosaicAddressResTx, $sig);
+
+// try {
+//   $result = $apiInstance->announceTransaction($jsonPayload);
+//   echo $result . PHP_EOL;
+// } catch (Exception $e) {
+//   echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+// }
+// echo 'TxHash' . PHP_EOL;
+// echo $facade->hashTransaction($bobMosaicAddressResTx) . PHP_EOL;
+
+/**
+ * 制限状態確認
+ */
+
+$restrictionAipInstance = new RestrictionMosaicRoutesApi($client, $config);
+$res = $restrictionAipInstance->searchMosaicRestrictions(
+  mosaic_id: '51E212A3D485C85F'
 );
-$facade->setMaxFee($carolMosaicAddressResTx, 100);
+echo 'MosaicRestrictions' . PHP_EOL;
+echo $res . PHP_EOL;
 
-
-// 署名
-$sig = $carolKey->signTransaction($carolMosaicAddressResTx);
-$jsonPayload = $facade->attachSignature($carolMosaicAddressResTx, $sig);
-
+/**
+ * 送信確認
+ */
+// 成功（CarolからBobに送信）
+$tx = new TransferTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $carolKey->publicKey,  // 署名者公開鍵
+  deadline: new Timestamp($facade->now()->addHours(2)), // 有効期限
+  recipientAddress: $bobKey->address, // 受信者アドレス
+  mosaics: [
+    new UnresolvedMosaic(
+      mosaicId: new UnresolvedMosaicId('0x51E212A3D485C85F'),  // モザイクID
+      amount: new Amount(1) // 金額
+    )
+  ],
+  message: '',
+);
+$facade->setMaxFee($tx, 100);  // 手数料
+$sig = $carolKey->signTransaction($tx);
+$payload = $facade->attachSignature($tx, $sig);
 try {
-  $result = $apiInstance->announceTransaction($jsonPayload);
+  $result = $apiInstance->announceTransaction($payload);
   echo $result . PHP_EOL;
 } catch (Exception $e) {
   echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
 }
 echo 'TxHash' . PHP_EOL;
-echo $facade->hashTransaction($carolMosaicAddressResTx) . PHP_EOL;
+echo $facade->hashTransaction($tx) . PHP_EOL;
+
+// 失敗（CarolからDaveに送信）
+$daveKey = $facade->createAccount(PrivateKey::random());
+
+$tx = new TransferTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $carolKey->publicKey,  // 署名者公開鍵
+  deadline: new Timestamp($facade->now()->addHours(2)), // 有効期限
+  recipientAddress: $daveKey->address, // 受信者アドレス
+  mosaics: [
+    new UnresolvedMosaic(
+      mosaicId: new UnresolvedMosaicId('0x51E212A3D485C85F'),  // モザイクID
+      amount: new Amount(1) // 金額
+    )
+  ],
+  message: '',
+);
+$facade->setMaxFee($tx, 100);  // 手数料
+$sig = $carolKey->signTransaction($tx);
+$payload = $facade->attachSignature($tx, $sig);
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
+echo 'TxHash' . PHP_EOL;
+echo $facade->hashTransaction($tx) . PHP_EOL;

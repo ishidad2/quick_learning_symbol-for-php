@@ -35,7 +35,7 @@ $tx = new AccountAddressRestrictionTransactionV1(
   ],  // 設定アドレス
   restrictionDeletions:[] // 削除アドレス
 );
-$facade->setMaxFee($tx, 1000);
+$facade->setMaxFee($tx, 100);
 
 // 署名
 $sig = $carolKey->signTransaction($tx);
@@ -294,69 +294,127 @@ Carol,Bobに対してグローバル制限モザイクに対しての適格情�
 送信を成功させるためには、送信者・受信者双方が条件をクリアしている必要があります。  
 モザイク作成者の秘密鍵があればどのアカウントに対しても承諾の署名を必要とせずに制限をつけることができます。  
 
-```js
-//Carolに適用
-carolMosaicAddressResTx =  sym.MosaicAddressRestrictionTransaction.create(
-    sym.Deadline.create(epochAdjustment),
-    mosaicDefTx.mosaicId, // mosaicId
-    sym.KeyGenerator.generateUInt64Key("KYC"), // restrictionKey
-    carol.address, // address
-    sym.UInt64.fromUint(1), // newRestrictionValue
-    networkType,
-    sym.UInt64.fromHex('FFFFFFFFFFFFFFFF') //previousRestrictionValue
-).setMaxFee(100);
-signedTx = carol.sign(carolMosaicAddressResTx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+```php
+// carolに適用
+$carolMosaicAddressResTx = new MosaicAddressRestrictionTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $carolKey->publicKey,
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  mosaicId: new UnresolvedMosaicId('0x10FE6A79F72DB356'),
+  restrictionKey: $keyId,
+  previousRestrictionValue: -1, // 以前のリストリクション値がなく、新規に値を設定する場合
+  newRestrictionValue: 1,
+  targetAddress: $carolKey->address,
+);
+$facade->setMaxFee($carolMosaicAddressResTx, 100);
 
-//Bobに適用
-bob = sym.Account.generateNewAccount(networkType);
-bobMosaicAddressResTx =  sym.MosaicAddressRestrictionTransaction.create(
-    sym.Deadline.create(epochAdjustment),
-    mosaicDefTx.mosaicId, // mosaicId
-    sym.KeyGenerator.generateUInt64Key("KYC"), // restrictionKey
-    bob.address, // address
-    sym.UInt64.fromUint(1), // newRestrictionValue
-    networkType,
-    sym.UInt64.fromHex('FFFFFFFFFFFFFFFF') //previousRestrictionValue
-).setMaxFee(100);
-signedTx = carol.sign(bobMosaicAddressResTx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+
+// 署名
+$sig = $carolKey->signTransaction($carolMosaicAddressResTx);
+$jsonPayload = $facade->attachSignature($carolMosaicAddressResTx, $sig);
+
+try {
+  $result = $apiInstance->announceTransaction($jsonPayload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
+
+// bobに適用
+$bobMosaicAddressResTx = new MosaicAddressRestrictionTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $carolKey->publicKey,
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  mosaicId: new UnresolvedMosaicId('0x10FE6A79F72DB356'),
+  restrictionKey: $keyId,
+  previousRestrictionValue: -1, // 以前のリストリクション値がなく、新規に値を設定する場合
+  newRestrictionValue: 1,
+  targetAddress: $bobKey->address,
+);
+$facade->setMaxFee($bobMosaicAddressResTx, 100);
+
+// 署名
+$sig = $carolKey->signTransaction($bobMosaicAddressResTx);
+$jsonPayload = $facade->attachSignature($bobMosaicAddressResTx, $sig);
+
+try {
+  $result = $apiInstance->announceTransaction($jsonPayload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 
 ### 制限状態確認
 
 ノードに問い合わせて制限状態を確認します。
 
-```js
-res = await resMosaicRepo.search({mosaicId:mosaicDefTx.mosaicId}).toPromise();
-console.log(res);
+```php
+$restrictionAipInstance = new RestrictionMosaicRoutesApi($client, $config);
+$res = $restrictionAipInstance->searchMosaicRestrictions(
+  mosaic_id: '10FE6A79F72DB356'
+);
+echo 'MosaicRestrictions' . PHP_EOL;
+echo $res . PHP_EOL;
 ```
 
 ###### 出力例
 ```js
-> data
-    > 0: MosaicGlobalRestriction
-      compositeHash: "68FBADBAFBD098C157D42A61A7D82E8AF730D3B8C3937B1088456432CDDB8373"
-      entryType: 1
-    > mosaicId: MosaicId
-        id: Id {lower: 2467167064, higher: 973862467}
-    > restrictions: Array(1)
-        0: MosaicGlobalRestrictionItem
-          key: UInt64 {lower: 2424036727, higher: 2165465980}
-          restrictionType: 1
-          restrictionValue: UInt64 {lower: 1, higher: 0}
-    > 1: MosaicAddressRestriction
-      compositeHash: "920BFD041B6D30C0799E06585EC5F3916489E2DDF47FF6C30C569B102DB39F4E"
-      entryType: 0
-    > mosaicId: MosaicId
-        id: Id {lower: 2467167064, higher: 973862467}
-    > restrictions: Array(1)
-        0: MosaicAddressRestrictionItem
-          key: UInt64 {lower: 2424036727, higher: 2165465980}
-          restrictionValue: UInt64 {lower: 1, higher: 0}
-          targetAddress: Address {address: 'TAZCST2RBXDSD3227Y4A6ZP3QHFUB2P7JQVRYEI', networkType: 152}
-  > 2: MosaicAddressRestriction
-  ...
+{
+    "data": [
+        {
+            "id": "66A5B8E584E82060AFC8F4DD",
+            "mosaicRestrictionEntry": {
+                "version": 1,
+                "compositeHash": "D2F056476C118C5CB1C15978B23603D404CE91629BA2DB82A3D91CEA9D6E9422",
+                "entryType": 1,
+                "mosaicId": "10FE6A79F72DB356",
+                "restrictions": [
+                    {
+                        "key": "9300605567124626807",
+                        "restriction": {
+                            "referenceMosaicId": "0000000000000000",
+                            "restrictionValue": "1",
+                            "restrictionType": 1
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "id": "66A5C05484E82060AFC900C0",
+            "mosaicRestrictionEntry": {
+                "version": 1,
+                "compositeHash": "0E562A82F14DB98C1831B570F3D96FE7939AED5AF110FE54EC995DCE8408629F",
+                "entryType": 0,
+                "mosaicId": "10FE6A79F72DB356",
+                "restrictions": [
+                    {
+                        "key": "9300605567124626807"
+                    }
+                ]
+            }
+        },
+        {
+            "id": "66A5C0F384E82060AFC90244",
+            "mosaicRestrictionEntry": {
+                "version": 1,
+                "compositeHash": "164CE57733CEEFE0D8E46B05750C1209B04E96696F46204676B631A63BE005A9",
+                "entryType": 0,
+                "mosaicId": "10FE6A79F72DB356",
+                "restrictions": [
+                    {
+                        "key": "9300605567124626807"
+                    }
+                ]
+            }
+        }
+    ],
+    "pagination": {
+        "pageNumber": 1,
+        "pageSize": 10
+    }
+}
 ```
 
 ### 送信確認
@@ -364,34 +422,65 @@ console.log(res);
 実際にモザイクを送信してみて、制限状態を確認します。
 
 ```js
-//成功（CarolからBobに送信）
-trTx = sym.TransferTransaction.create(
-        sym.Deadline.create(epochAdjustment),
-        bob.address, 
-        [new sym.Mosaic(mosaicDefTx.mosaicId, sym.UInt64.fromUint(1))],
-        sym.PlainMessage.create(""),
-        networkType
-      ).setMaxFee(100);
-signedTx = carol.sign(trTx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+// 成功（CarolからBobに送信）
+$tx = new TransferTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $carolKey->publicKey,  // 署名者公開鍵
+  deadline: new Timestamp($facade->now()->addHours(2)), // 有効期限
+  recipientAddress: $bobKey->address, // 受信者アドレス
+  mosaics: [
+    new UnresolvedMosaic(
+      mosaicId: new UnresolvedMosaicId('0x51E212A3D485C85F'),  // モザイクID
+      amount: new Amount(1) // 金額
+    )
+  ],
+  message: '',
+);
+$facade->setMaxFee($tx, 100);  // 手数料
+$sig = $carolKey->signTransaction($tx);
+$payload = $facade->attachSignature($tx, $sig);
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
+echo 'TxHash' . PHP_EOL;
+echo $facade->hashTransaction($tx) . PHP_EOL;
 
-//失敗（CarolからDaveに送信）
-dave = sym.Account.generateNewAccount(networkType);
-trTx = sym.TransferTransaction.create(
-        sym.Deadline.create(epochAdjustment),
-        dave.address, 
-        [new sym.Mosaic(mosaicDefTx.mosaicId, sym.UInt64.fromUint(1))],
-        sym.PlainMessage.create(""),
-        networkType
-      ).setMaxFee(100);
-signedTx = carol.sign(trTx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+// 失敗（CarolからDaveに送信）
+$daveKey = $facade->createAccount(PrivateKey::random());
+
+$tx = new TransferTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $carolKey->publicKey,  // 署名者公開鍵
+  deadline: new Timestamp($facade->now()->addHours(2)), // 有効期限
+  recipientAddress: $daveKey->address, // 受信者アドレス
+  mosaics: [
+    new UnresolvedMosaic(
+      mosaicId: new UnresolvedMosaicId('0x51E212A3D485C85F'),  // モザイクID
+      amount: new Amount(1) // 金額
+    )
+  ],
+  message: '',
+);
+$facade->setMaxFee($tx, 100);  // 手数料
+$sig = $carolKey->signTransaction($tx);
+$payload = $facade->attachSignature($tx, $sig);
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
+echo 'TxHash' . PHP_EOL;
+echo $facade->hashTransaction($tx) . PHP_EOL;
 ```
 
 失敗した場合以下のようなエラーステータスになります。
 
 ```js
-{"hash":"E3402FB7AE21A6A64838DDD0722420EC67E61206C148A73B0DFD7F8C098062FA","code":"Failure_RestrictionMosaic_Account_Unauthorized","deadline":"12371602742","group":"failed"}
+{"hash":"C7E0EAF9941D9030E055BE87F0F79805582CA1713680BA546837042EA3DEDBCD","code":"Failure_RestrictionMosaic_Account_Unauthorized","deadline":"54911200734","group":"failed"}
 ```
 
 ## 11.3 現場で使えるヒント
@@ -403,9 +492,9 @@ await txRepo.announce(signedTx).toPromise();
 
 ### アカウントバーン
 
-AllowIncomingAddressによって指定アドレスからのみ受信可能にしておいて、  
-XYMを全量送信すると、秘密鍵を持っていても自力では操作困難なアカウントを明示的に作成することができます。  
-（最小手数料を0に設定したノードによって承認されることもあり、その可能性はゼロではありません）  
+AllowIncomingAddressによって指定アドレスからのみ受信可能にしておいて、
+XYMを全量送信すると、秘密鍵を持っていても自力では操作困難なアカウントを明示的に作成することができます。
+（最小手数料を0に設定したノードによって承認されることもあり、その可能性はゼロではありません）
 
 ### モザイクロック
 譲渡不可設定のモザイクを配布し、配布者側のアカウントで受け取り拒否を行うとモザイクをロックさせることができます。
