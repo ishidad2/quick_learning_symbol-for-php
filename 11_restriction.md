@@ -127,6 +127,7 @@ try {
 } catch (Exception $e) {
   echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
 }
+```
 
 アカウント制限やモザイク制限と同様、restrictionFlags は v2 の OperationRestrictionFlag に相当します。 OperationRestrictionFlag との対応は以下の通りです。
 
@@ -421,7 +422,7 @@ echo $res . PHP_EOL;
 
 実際にモザイクを送信してみて、制限状態を確認します。
 
-```js
+```php
 // 成功（CarolからBobに送信）
 $tx = new TransferTransactionV1(
   network: new NetworkType(NetworkType::TESTNET),
