@@ -3,89 +3,137 @@
 アカウントに対する制限とモザイクのグローバル制限についての方法を紹介します。
 本章では、既存アカウントの権限を制限してしまうので、使い捨てのアカウントを新規に作成してお試しください。
 
-```js
+```php
 //使い捨てアカウントCarolの生成
-carol = sym.Account.generateNewAccount(networkType);
-console.log(carol.address);
+$carolKey = $facade->createAccount(PrivateKey::random());
 
-//FAUCET URL出力
-console.log("https://testnet.symbol.tools/?recipient=" + carol.address.plain() +"&amount=100");
+echo "https://testnet.symbol.tools/?recipient=" . $carolKey->address . "&amount=20" . PHP_EOL;
 ```
 ## 11.1 アカウント制限
 
 ### 指定アドレスからの受信制限・指定アドレスへの送信制限
-```js
+```php
 
-bob = sym.Account.generateNewAccount(networkType);
+$bobKey = $facade->createAccount(new PrivateKey('7CBA79757479402DDCDE6577F938CDE6FD9035ACADC1E343AE155EFA679D462A') );
+$bobAddress = $bobKey->address;
+echo 'Bob' . PHP_EOL;
+echo 'Address: ' . $bobAddress . PHP_EOL;
 
-tx = sym.AccountRestrictionTransaction.createAddressRestrictionModificationTransaction(
-  sym.Deadline.create(epochAdjustment),
-  sym.AddressRestrictionFlag.BlockIncomingAddress, //アドレス制限フラグ
-  [bob.address],//設定アドレス
-  [],　　　　　　//解除アドレス
-  networkType
-).setMaxFee(100);
-signedTx = carol.sign(tx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+// 制限設定
+$f = AccountRestrictionFlags::ADDRESS; // アドレス制限
+$f += AccountRestrictionFlags::BLOCK; // ブロック
+$flags = new AccountRestrictionFlags($f);
+
+// アドレス制限設定Tx作成
+$tx = new AccountAddressRestrictionTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $carolKey->publicKey,
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  restrictionFlags: $flags, // 制限フラグ
+  restrictionAdditions:[
+    $bobAddress
+  ],  // 設定アドレス
+  restrictionDeletions:[] // 削除アドレス
+);
+$facade->setMaxFee($tx, 1000);
+
+// 署名
+$sig = $carolKey->signTransaction($tx);
+$jsonPayload = $facade->attachSignature($tx, $sig);
+
+try {
+  $result = $apiInstance->announceTransaction($jsonPayload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 
-AddressRestrictionFlagについては以下の通りです。
-```js
-{1: 'AllowIncomingAddress', 16385: 'AllowOutgoingAddress', 32769: 'BlockIncomingAddress', 49153: 'BlockOutgoingAddress'}
-```
+restrictionFlags は v2 の AddressRestrictionFlag に相当します。 AddressRestrictionFlag との対応は以下の通りです。
 
-AddressRestrictionFlagにはBlockIncomingAddressのほか、上記のようなフラグが使用できます。
 - AllowIncomingAddress：指定アドレスからのみ受信許可
+  - symbolSdk.symbol.AccountRestrictionFlags.ADDRESS
 - AllowOutgoingAddress：指定アドレス宛のみ送信許可
+  - symbolSdk.symbol.AccountRestrictionFlags.ADDRESS + symbolSdk.symbol.AccountRestrictionFlags.OUTGOING
 - BlockIncomingAddress：指定アドレスからの受信受拒否
+  - symbolSdk.symbol.AccountRestrictionFlags.ADDRESS + symbolSdk.symbol.AccountRestrictionFlags.BLOCK
 - BlockOutgoingAddress：指定アドレス宛への送信禁止
+  - symbolSdk.symbol.AccountRestrictionFlags.ADDRESS + symbolSdk.symbol.AccountRestrictionFlags.BLOCK + symbolSdk.symbol.AccountRestrictionFlags.OUTGOING
 
 ### 指定モザイクの受信制限
-```js
-mosaicId = new sym.MosaicId("72C0212E67A08BCE"); //テストネット XYM
-tx = sym.AccountRestrictionTransaction.createMosaicRestrictionModificationTransaction(
-  sym.Deadline.create(epochAdjustment),
-  sym.MosaicRestrictionFlag.BlockMosaic, //モザイク制限フラグ
-  [mosaicId],//設定モザイク
-  [],//解除モザイク
-  networkType
-).setMaxFee(100);
-signedTx = carol.sign(tx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+```php
+$f = AccountRestrictionFlags::MOSAIC_ID; // モザイク制限
+$f += AccountRestrictionFlags::BLOCK; // ブロック
+$flags = new AccountRestrictionFlags($f);
+
+$tx = new AccountMosaicRestrictionTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $carolKey->publicKey,
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  restrictionFlags: $flags, // 制限フラグ
+  restrictionAdditions:[
+    new UnresolvedMosaicId($namespaceId)
+  ],  // 設定モザイク
+  restrictionDeletions:[] // 削除モザイク
+);
+$facade->setMaxFee($tx, 1000);
+
+// 署名
+$sig = $carolKey->signTransaction($tx);
+$jsonPayload = $facade->attachSignature($tx, $sig);
+
+try {
+  $result = $apiInstance->announceTransaction($jsonPayload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 
-MosaicRestrictionFlagについては以下の通りです。
-```js
-{2: 'AllowMosaic', 32770: 'BlockMosaic'}
-```
+アカウント制限と同様、 restrictionFlags は v2 の MosaicRestrictionFlag に相当します。 MosaicRestrictionFlag との対応は以下の通りです。
 
 - AllowMosaic：指定モザイクを含むトランザクションのみ受信許可
+  - symbolSdk.symbol.AccountRestrictionFlags.MOSAIC_ID
 - BlockMosaic：指定モザイクを含むトランザクションを受信拒否
-
-モザイク送信の制限機能はありません。
-また、後述するモザイクのふるまいを制限するグローバルモザイク制限と混同しないようにご注意ください。
+  -symbolSdk.symbol.AccountRestrictionFlags.MOSAIC_ID + symbolSdk.symbol.AccountRestrictionFlags.BLOCK
+モザイク送信の制限機能はありません。また、後述するモザイクのふるまいを制限するグローバルモザイク制限と混同しないようにご注意ください。
 
 ### 指定トランザクションの送信制限
 
-```js
-tx = sym.AccountRestrictionTransaction.createOperationRestrictionModificationTransaction(
-  sym.Deadline.create(epochAdjustment),
-  sym.OperationRestrictionFlag.AllowOutgoingTransactionType,
-      [sym.TransactionType.ACCOUNT_OPERATION_RESTRICTION],//設定トランザクション
-  [],//解除トランザクション
-  networkType
-).setMaxFee(100);
-signedTx = carol.sign(tx,generationHash);
-await txRepo.announce(signedTx).toPromise();
-```
+```php
+$f = AccountRestrictionFlags::TRANSACTION_TYPE; // トランザクション制限
+$f += AccountRestrictionFlags::OUTGOING; // 送信
+$flags = new AccountRestrictionFlags($f);
 
-OperationRestrictionFlagについては以下の通りです。
-```js
-{16388: 'AllowOutgoingTransactionType', 49156: 'BlockOutgoingTransactionType'}
-```
+$tx = new AccountOperationRestrictionTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $carolKey->publicKey,
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  restrictionFlags: $flags, // 制限フラグ
+  restrictionAdditions:[
+    new TransactionType(TransactionType::ACCOUNT_OPERATION_RESTRICTION)
+  ],  // 設定トランザクション
+  restrictionDeletions:[] // 削除トランザクション
+);
+$facade->setMaxFee($tx, 100);
+
+// 署名
+$sig = $carolKey->signTransaction($tx);
+$jsonPayload = $facade->attachSignature($tx, $sig);
+
+try {
+  $result = $apiInstance->announceTransaction($jsonPayload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
+
+アカウント制限やモザイク制限と同様、restrictionFlags は v2 の OperationRestrictionFlag に相当します。 OperationRestrictionFlag との対応は以下の通りです。
 
 - AllowOutgoingTransactionType：指定トランザクションの送信のみ許可
+  - symbolSdk.symbol.AccountRestrictionFlags.TRANSACTION_TYPE + symbolSdk.symbol.AccountRestrictionFlags.OUTGOING
 - BlockOutgoingTransactionType：指定トランザクションの送信を禁止
+ - symbolSdk.symbol.AccountRestrictionFlags.TRANSACTION_TYPE + symbolSdk.symbol.AccountRestrictionFlags.OUTGOING + symbolSdk.symbol.AccountRestrictionFlags.BLOCK
 
 トランザクション受信の制限機能はありません。指定できるオペレーションは以下の通りです。
 
@@ -105,93 +153,122 @@ BlockOutgoingTransactionTypeを指定する場合は、ACCOUNT_OPERATION_RESTRIC
 設定した制限情報を確認します
 
 ```js
-resAccountRepo = repo.createRestrictionAccountRepository();
-
-res = await resAccountRepo.getAccountRestrictions(carol.address).toPromise();
-console.log(res);
+$restrictionAipInstance = new RestrictionAccountRoutesApi($client, $config);
+$res = $restrictionAipInstance->getAccountRestrictions($carolKey->address);
+echo $res . PHP_EOL;
 ```
 ###### 出力例
-```js
-> AccountRestrictions
-    address: Address {address: 'TBXUTAX6O6EUVPB6X7OBNX6UUXBMPPAFX7KE5TQ', networkType: 152}
-  > restrictions: Array(2)
-      0: AccountRestriction
-        restrictionFlags: 32770
-        values: Array(1)
-          0: MosaicId
-            id: Id {lower: 1360892257, higher: 309702839}
-      1: AccountRestriction
-        restrictionFlags: 49153
-        values: Array(1)
-          0: Address {address: 'TCW2ZW7LVJMS4LWUQ7W6NROASRE2G2QKSBVCIQY', networkType: 152}
+```
+{
+    "accountRestrictions": {
+        "version": 1,
+        "address": "98070C726161DEDAC6642EB41583016DC936053BA43E050B",
+        "restrictions": [
+            {
+                "restrictionFlags": 32769,
+                "values": [
+                    "98B00F753CF2564075CC94721E3BCFC4B99E38E8A3DCBBC7"
+                ]
+            },
+            {
+                "restrictionFlags": 32770,
+                "values": [
+                    "72C0212E67A08BCE"
+                ]
+            },
+            {
+                "restrictionFlags": 16388,
+                "values": [
+                    "17232"
+                ]
+            }
+        ]
+    }
+}
 ```
 
 ## 11.2 グローバルモザイク制限
 
-グローバルモザイク制限はモザイクに対して送信可能な条件を設定します。  
-その後、各アカウントに対してグローバルモザイク制限専用の数値メタデータを付与します。  
-送信アカウント・受信アカウントの両方が条件を満たした場合のみ、該当モザイクを送信することができます。  
-
-最初に必要ライブラリの設定を行います。
-```js
-nsRepo = repo.createNamespaceRepository();
-resMosaicRepo = repo.createRestrictionMosaicRepository();
-mosaicResService = new sym.MosaicRestrictionTransactionService(resMosaicRepo,nsRepo);
-```
+グローバルモザイク制限はモザイクに対して送信可能な条件を設定します。
+その後、各アカウントに対してグローバルモザイク制限専用の数値メタデータを付与します。
+送信アカウント・受信アカウントの両方が条件を満たした場合のみ、該当モザイクを送信することができます。
 
 
 ### グローバル制限機能つきモザイクの作成
 restrictableをtrueにしてCarolでモザイクを作成します。
 
-```js
-supplyMutable = true; //供給量変更の可否
-transferable = true; //第三者への譲渡可否
-restrictable = true; //グローバル制限設定の可否
-revokable = true; //発行者からの還収可否
+```php
 
-nonce = sym.MosaicNonce.createRandom();
-mosaicDefTx = sym.MosaicDefinitionTransaction.create(
-    undefined,
-    nonce,
-    sym.MosaicId.createFromNonce(nonce, carol.address),
-    sym.MosaicFlags.create(supplyMutable, transferable, restrictable, revokable),
-    0,//divisibility
-    sym.UInt64.fromUint(0), //duration
-    networkType
+// モザイクフラグ設定
+$f = MosaicFlags::NONE;
+$f += MosaicFlags::SUPPLY_MUTABLE; // 供給量変更可能
+$f += MosaicFlags::TRANSFERABLE; // 第三者への譲渡可否
+$f += MosaicFlags::RESTRICTABLE; //制限設定の可否
+$f += MosaicFlags::REVOKABLE; //発行者からの還収可否
+$flags = new MosaicFlags($f);
+
+$mosaicId = IdGenerator::generateMosaicId($carolKey->address);
+
+// モザイク定義
+$mosaicDefTx = new EmbeddedMosaicDefinitionTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $carolKey->publicKey, // 署名者公開鍵
+  id: new MosaicId($mosaicId['id']), // モザイクID
+  divisibility: 2, // 分割可能性
+  duration: new BlockDuration(0), //duration:有効期限
+  nonce: new MosaicNonce($mosaicId['nonce']),
+  flags: $flags,
 );
 
-//モザイク変更
-mosaicChangeTx = sym.MosaicSupplyChangeTransaction.create(
-    undefined,
-    mosaicDefTx.mosaicId,
-    sym.MosaicSupplyChangeAction.Increase,
-    sym.UInt64.fromUint(1000000),
-    networkType
+// モザイク変更
+$mosaicChangeTx = new EmbeddedMosaicSupplyChangeTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $carolKey->publicKey, // 署名者公開鍵
+  mosaicId: new UnresolvedMosaicId($mosaicId['id']),
+  delta: new Amount(10000),
+  action: new MosaicSupplyChangeAction(MosaicSupplyChangeAction::INCREASE),
 );
 
-//グローバルモザイク制限
-key = sym.KeyGenerator.generateUInt64Key("KYC") // restrictionKey 
-mosaicGlobalResTx = await mosaicResService.createMosaicGlobalRestrictionTransaction(
-    undefined,
-    networkType,
-    mosaicDefTx.mosaicId,
-    key,
-    '1',
-    sym.MosaicRestrictionType.EQ,
-).toPromise();
+// キーの値と設定
+$keyId = Metadata::metadataGenerateKey("KYC"); // restrictionKey
 
-aggregateTx = sym.AggregateTransaction.createComplete(
-    sym.Deadline.create(epochAdjustment),
-    [
-      mosaicDefTx.toAggregate(carol.publicAccount),
-      mosaicChangeTx.toAggregate(carol.publicAccount),
-      mosaicGlobalResTx.toAggregate(carol.publicAccount)
-    ],
-    networkType,[],
-).setMaxFeeForAggregate(100, 0);
+// グローバルモザイク制限
+$mosaicGlobalResTx = new EmbeddedMosaicGlobalRestrictionTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $carolKey->publicKey,
+  mosaicId: new UnresolvedMosaicId($mosaicId['id']),
+  restrictionKey: $keyId,
+  newRestrictionValue: 1,
+  newRestrictionType: new MosaicRestrictionType(MosaicRestrictionType::EQ),
+);
+// 更新する場合は以下も設定する必要あり
+//   - mosaicGlobalResTx.previousRestrictionValue
+//   - mosaicGlobalResTx.previousRestrictionType
 
-signedTx = carol.sign(aggregateTx,generationHash);
-await txRepo.announce(signedTx).toPromise();
+// マークルハッシュの算出
+$embeddedTransactions = [$mosaicDefTx, $mosaicChangeTx, $mosaicGlobalResTx];
+$merkleHash = $facade->hashEmbeddedTransactions($embeddedTransactions);
+
+// アグリゲートTx作成
+$aggregateTx = new AggregateCompleteTransactionV2(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $carolKey->publicKey,
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  transactionsHash: $merkleHash,
+  transactions: $embeddedTransactions
+);
+$facade->setMaxFee($aggregateTx, 100);  // 手数料
+
+// 署名
+$sig = $carolKey->signTransaction($aggregateTx);
+$payload = $facade->attachSignature($aggregateTx, $sig);
+
+try {
+  $result = $apiInstance->announceTransaction($payload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 
 MosaicRestrictionTypeについては以下の通りです。
