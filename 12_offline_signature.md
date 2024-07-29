@@ -1,147 +1,250 @@
 # 12.オフライン署名
 
-ロック機構の章で、アナウンスしたトランザクションをハッシュ値指定でロックして、  
-複数の署名（オンライン署名）を集めるアグリゲートトランザクションを紹介しました。    
-この章では、トランザクションを事前に署名を集めてノードにアナウンスするオフライン署名について説明します。  
+ロック機構の章で、アナウンスしたトランザクションをハッシュ値指定でロックして、
+複数の署名（オンライン署名）を集めるアグリゲートトランザクションを紹介しました。
+この章では、トランザクションを事前に署名を集めてノードにアナウンスするオフライン署名について説明します。
 
 ## 手順
 
-Aliceが起案者となりトランザクションを作成し、署名します。  
-次にBobが署名してAliceに返します。  
-最後にAliceがトランザクションを結合してネットワークにアナウンスします。  
+Aliceが起案者となりトランザクションを作成し、署名します。
+次にBobが署名してAliceに返します。
+最後にAliceがトランザクションを結合してネットワークにアナウンスします。
 
 
 ## 12.1 トランザクション作成
-```js
-bob = sym.Account.generateNewAccount(networkType);
+```php
+$bobPrivateKey = 'B34C8DEEADF5FE608CB2FD245C9ECF8A70DAD7F7E66CB22614BAF90E******';
+$bobKey = $facade->createAccount(new PrivateKey($bobPrivateKey));
 
-innerTx1 = sym.TransferTransaction.create(
-    undefined,
-    bob.address, 
-    [],
-    sym.PlainMessage.create("tx1"),
-    networkType
+// アグリゲートTxに含めるTxを作成
+$innerTx1 = new EmbeddedTransferTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,
+  recipientAddress: $bobKey->address,
+  mosaics:[],
+  message: "\0tx1",
 );
 
-innerTx2 = sym.TransferTransaction.create(
-    undefined,
-    alice.address, 
-    [],
-    sym.PlainMessage.create("tx2"),
-    networkType
+$innerTx2 = new EmbeddedTransferTransactionV1(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $bobKey->publicKey,
+  recipientAddress: $aliceKey->address,
+  mosaics:[],
+  message: "\0tx2",
 );
 
-aggregateTx = sym.AggregateTransaction.createComplete(
-    sym.Deadline.create(epochAdjustment),
-    [
-      innerTx1.toAggregate(alice.publicAccount),
-      innerTx2.toAggregate(bob.publicAccount)
-    ],
-    networkType,
-    [],
-).setMaxFeeForAggregate(100, 1);
+// マークルハッシュの算出
+$embeddedTransactions = [$innerTx1, $innerTx2];
+$merkleHash = $facade->hashEmbeddedTransactions($embeddedTransactions);
 
-signedTx =  alice.sign(aggregateTx,generationHash);
-signedHash = signedTx.hash;
-signedPayload = signedTx.payload;
+// アグリゲートTx作成
+$aggregateTx = new AggregateCompleteTransactionV2(
+  network: new NetworkType(NetworkType::TESTNET),
+  signerPublicKey: $aliceKey->publicKey,
+  deadline: new Timestamp($facade->now()->addHours(2)),
+  transactionsHash: $merkleHash,
+  transactions: $embeddedTransactions,
+);
+$facade->setMaxFee($aggregateTx, 100, 2);
 
-console.log(signedPayload);
+// 署名
+$signedHash = $aliceKey->signTransaction($aggregateTx);
+$signedPayload = $facade->attachSignature($aggregateTx, $signedHash);
+echo "\n===payload===" . PHP_EOL;
+echo $signedPayload['payload'] . PHP_EOL;
 ```
 ###### 出力例
 ```js
->580100000000000039A6555133357524A8F4A832E1E596BDBA39297BC94CD1D0728572EE14F66AA71ACF5088DB6F0D1031FF65F2BBA7DA9EE3A8ECF242C2A0FE41B6A00A2EF4B9020E5C72B0D5946C1EFEE7E5317C5985F106B739BB0BC07E4F9A288417B3CD6D26000000000198414100AF000000000000D4641CD902000000306771D758886F1529F9B61664B0450ED138B27CC5E3AE579C16D550EDEE5791B00000000000000054000000000000000E5C72B0D5946C1EFEE7E5317C5985F106B739BB0BC07E4F9A288417B3CD6D26000000000198544198A1BE13194C0D18897DD88FE3BC4860B8EEF79C6BC8C8720400000000000000007478310000000054000000000000003C4ADF83264FF73B4EC1DD05B490723A8CFFAE1ABBD4D4190AC4CAC1E6505A5900000000019854419850BF0FD1A45FCEE211B57D0FE2B6421EB81979814F629204000000000000000074783200000000
+5801000000000000C3D9A9649B042203011BF8D6EFC912562FED813FCAE4A9861D42C9B6C397E00DF54A8634A9AC8AAD06AD882BA4841E60AF8FE9F1D2521110B30B3099B83F630825189135BF2307DCBCD1657A34ABC3FDEEC04A126D4572876BCA4F514DB5AC9B00000000029841416086000000000000D1B2F5CE0C0000008BD1718CB31EF65217DD6263D65D44F02CCA55DA429EDE4641F4FF0C97ECABBEB000000000000000550000000000000025189135BF2307DCBCD1657A34ABC3FDEEC04A126D4572876BCA4F514DB5AC9B000000000198544198B4A75DD1ADA8144D60BD8107002C2FEB02DD2EFD5C788E05000000000000005C307478310000005500000000000000A3378BE54307C0A814CDDEB2F9BEC1ACBEA44F298063A16A06B5C4ACE0AD28B4000000000198544198E521BD0F024F58E670A023BF3A14F3BECAF0280396BED005000000000000005C30747832000000
 ```
 
-署名を行い、signedHash,signedPayloadを出力します。  
-signedPayloadをBobに渡して署名を促します。  
+署名を行い、signedHash,signedPayloadを出力します。
+signedPayloadをBobに渡して署名を促します。
 
 ## 12.2 Bobによる連署
 
 
 Aliceから受け取ったsignedPayloadでトランザクションを復元します。
 
-```js
-tx = sym.TransactionMapping.createFromPayload(signedPayload);
-console.log(tx);
+```PHP
+$tx = TransactionFactory::deserialize(hex2bin($signedPayload['payload'])); // バイナリデータにする
+echo "\n===tx===" . PHP_EOL;
+print_r($tx);
 ```
 ###### 出力例
-```js
-> AggregateTransaction
-    cosignatures: []
-    deadline: Deadline {adjustedValue: 12197090355}
-  > innerTransactions: Array(2)
-      0: TransferTransaction {type: 16724, networkType: 152, version: 1, deadline: Deadline, maxFee: UInt64, …}
-      1: TransferTransaction {type: 16724, networkType: 152, version: 1, deadline: Deadline, maxFee: UInt64, …}
-    maxFee: UInt64 {lower: 44800, higher: 0}
-    networkType: 152
-    payloadSize: undefined
-    signature: "4999A8437DA1C339280ED19BE0814965B73D60A1A6AF2F3856F69FBFF9C7123427757247A231EB89BB8844F37AC6F7559F859E2FDE39B8FA58A57F36DDB3B505"
-    signer: PublicAccount
-      address: Address {address: 'TBXUTAX6O6EUVPB6X7OBNX6UUXBMPPAFX7KE5TQ', networkType: 152}
-      publicKey: "D4933FC1E4C56F9DF9314E9E0533173E1AB727BDB2A04B59F048124E93BEFBD2"
-    transactionInfo: undefined
-    type: 16705
-    version: 1
+```php
+SymbolSdk\Symbol\Models\AggregateCompleteTransactionV2 Object
+(
+    [transactionsHash] => SymbolSdk\Symbol\Models\Hash256 Object
+        (
+            [binaryData] => ��q���R�bc�]D�,�U�B��FA��
+                                                     �쫾
+        )
+
+    [transactions] => Array
+        (
+            [0] => SymbolSdk\Symbol\Models\EmbeddedTransferTransactionV1 Object
+                (
+                    [recipientAddress] => SymbolSdk\Symbol\Models\UnresolvedAddress Object
+                        (
+                            [binaryData] => ���]ѭ�M`��,/��.�\x�
+                        )
+
+                    [mosaics] => Array
+                        (
+                        )
+
+                    [message] => \0tx1
+                    [transferTransactionBodyReserved_1:SymbolSdk\Symbol\Models\EmbeddedTransferTransactionV1:private] => 0
+                    [transferTransactionBodyReserved_2:SymbolSdk\Symbol\Models\EmbeddedTransferTransactionV1:private] => 0
+                    [signerPublicKey] => SymbolSdk\Symbol\Models\PublicKey Object
+                        (
+                            [binaryData] => %�5�#ܼ�ez4�����JmEr�k�OQM���
+                        )
+
+                    [version] => 1
+                    [network] => SymbolSdk\Symbol\Models\NetworkType Object
+                        (
+                            [value] => 152
+                        )
+
+                    [type] => SymbolSdk\Symbol\Models\TransactionType Object
+                        (
+                            [value] => 16724
+                        )
+
+                    [embeddedTransactionHeaderReserved_1:SymbolSdk\Symbol\Models\EmbeddedTransaction:private] => 0
+                    [entityBodyReserved_1:SymbolSdk\Symbol\Models\EmbeddedTransaction:private] => 0
+                )
+
+            [1] => SymbolSdk\Symbol\Models\EmbeddedTransferTransactionV1 Object
+                (
+                    [recipientAddress] => SymbolSdk\Symbol\Models\UnresolvedAddress Object
+                        (
+                            [binaryData] => ��!�OX�p�#�:���(���
+                        )
+
+                    [mosaics] => Array
+                        (
+                        )
+
+                    [message] => \0tx2
+                    [transferTransactionBodyReserved_1:SymbolSdk\Symbol\Models\EmbeddedTransferTransactionV1:private] => 0
+                    [transferTransactionBodyReserved_2:SymbolSdk\Symbol\Models\EmbeddedTransferTransactionV1:private] => 0
+                    [signerPublicKey] => SymbolSdk\Symbol\Models\PublicKey Object
+                        (
+                            [binaryData] => �7��C���޲������O)�c�j�Ĭ�(�
+                        )
+
+                    [version] => 1
+                    [network] => SymbolSdk\Symbol\Models\NetworkType Object
+                        (
+                            [value] => 152
+                        )
+
+                    [type] => SymbolSdk\Symbol\Models\TransactionType Object
+                        (
+                            [value] => 16724
+                        )
+
+                    [embeddedTransactionHeaderReserved_1:SymbolSdk\Symbol\Models\EmbeddedTransaction:private] => 0
+                    [entityBodyReserved_1:SymbolSdk\Symbol\Models\EmbeddedTransaction:private] => 0
+                )
+
+        )
+
+    [cosignatures] => Array
+        (
+        )
+
+    [aggregateTransactionHeaderReserved_1:SymbolSdk\Symbol\Models\AggregateCompleteTransactionV2:private] => 0
+    [signature] => SymbolSdk\Symbol\Models\Signature Object
+        (
+            [binaryData] => �����FI�Q�Q��9#�{���k�-��Z�bb�
+                                                          m�`�@u�^V�~cA'�74�Fv
+        )
+
+    [signerPublicKey] => SymbolSdk\Symbol\Models\PublicKey Object
+        (
+            [binaryData] => %�5�#ܼ�ez4�����JmEr�k�OQM���
+        )
+
+    [version] => 2
+    [network] => SymbolSdk\Symbol\Models\NetworkType Object
+        (
+            [value] => 152
+        )
+
+    [type] => SymbolSdk\Symbol\Models\TransactionType Object
+        (
+            [value] => 16705
+        )
+
+    [fee] => SymbolSdk\Symbol\Models\Amount Object
+        (
+            [size] => 8
+            [value] => 34400
+        )
+
+    [deadline] => SymbolSdk\Symbol\Models\Timestamp Object
+        (
+            [size] => 8
+            [value] => 55012380245
+        )
+
+    [verifiableEntityHeaderReserved_1:SymbolSdk\Symbol\Models\Transaction:private] => 0
+    [entityBodyReserved_1:SymbolSdk\Symbol\Models\Transaction:private] => 0
+)
 ```
 
 念のため、Aliceがすでに署名したトランザクション（ペイロード）かどうかを検証します。
-```js
-Buffer = require("/node_modules/buffer").Buffer;
-res = tx.signer.verifySignature(
-    tx.getSigningBytes([...Buffer.from(signedPayload,'hex')],[...Buffer.from(generationHash,'hex')]),
-    tx.signature
-);
-console.log(res);
+```php
+$signature = new Signature($tx->signature);
+$res = $facade->verifyTransaction($tx, $signature);
+var_dump($res);
 ```
 ###### 出力例
-```js
-> true
+```
+true
 ```
 
 ペイロードがsigner、つまりAliceによって署名されたものであることが確認できました。
 次にBobが連署します。
-```js
-bobSignedTx = sym.CosignatureTransaction.signTransactionPayload(bob, signedPayload, generationHash);
-bobSignedTxSignature = bobSignedTx.signature;
-bobSignedTxSignerPublicKey = bobSignedTx.signerPublicKey;
+```php
+$bobCosignature = $facade->cosignTransaction($bobKey->keyPair, $tx, true);
+$bobSignedTxSignature = $bobCosignature->signature;
+$bobSignedTxSignerPublicKey = $bobCosignature->signerPublicKey;
 ```
 
-CosignatureTransactionで署名を行い、bobSignedTxSignature,bobSignedTxSignerPublicKeyを出力しAliceに返却します。  
+CosignatureTransactionで署名を行い、bobSignedTxSignature,bobSignedTxSignerPublicKeyを出力しAliceに返却します。
 Bobが全ての署名を揃えられる場合は、Aliceに返却しなくてもBobがアナウンスすることも可能です。
 
 ## 12.3 Aliceによるアナウンス
 
-AliceはBobからbobSignedTxSignature,bobSignedTxSignerPublicKeyを受け取ります。  
-また事前にAlice自身で作成したsignedPayloadを用意します。  
+AliceはBobからbobSignedTxSignature,bobSignedTxSignerPublicKeyを受け取ります。
+また事前にAlice自身で作成したsignedPayloadを用意します。
 
-```js
-signedHash = sym.Transaction.createTransactionHash(signedPayload,Buffer.from(generationHash, 'hex'));
-cosignSignedTxs = [
-    new sym.CosignatureSignedTransaction(signedHash,bobSignedTxSignature,bobSignedTxSignerPublicKey)
-];
+```PHP
+$recreatedTx = TransactionFactory::deserialize(hex2bin($signedPayload['payload']));
 
-recreatedTx = sym.TransactionMapping.createFromPayload(signedPayload);
+// 連署者の署名を追加
+$cosignature = new Cosignature();
+$signTxHash = $facade->hashTransaction($aggregateTx);
+$cosignature->parentHash = new Hash256($signTxHash);
+$cosignature->version = 0;
+$cosignature->signerPublicKey = $bobSignedTxSignerPublicKey;
+$cosignature->signature = $bobSignedTxSignature;
+array_push($recreatedTx->cosignatures, $cosignature);
 
-cosignSignedTxs.forEach((cosignedTx) => {
-    signedPayload += cosignedTx.version.toHex() + cosignedTx.signerPublicKey + cosignedTx.signature;
-});
+$signedPayload = ["payload" => strtoupper(bin2hex($recreatedTx->serialize()))];
+echo $signedPayload;
 
-size = `00000000${(signedPayload.length / 2).toString(16)}`;
-formatedSize = size.substr(size.length - 8, size.length);
-littleEndianSize = formatedSize.substr(6, 2) + formatedSize.substr(4, 2) + formatedSize.substr(2, 2) + formatedSize.substr(0, 2);
-
-signedPayload = littleEndianSize + signedPayload.substr(8, signedPayload.length - 8);
-signedTx = new sym.SignedTransaction(signedPayload, signedHash, alice.publicKey, recreatedTx.type, recreatedTx.networkType);
-
-await txRepo.announce(signedTx).toPromise();
-```
-
-後半部分の連署を追加する部分がPayload(サイズ値)を直接操作しているので少し難しいかもしれません。
-Aliceの秘密鍵で再度署名できる場合はcosignSignedTxsを生成した後、以下のように連署済みトランザクションを生成することも可能です。
-
-```js
-resignedTx = recreatedTx.signTransactionGivenSignatures(alice, cosignSignedTxs, generationHash);
-await txRepo.announce(resignedTx).toPromise();
+try {
+  $result = $apiInstance->announceTransaction($signedPayload);
+  echo $result . PHP_EOL;
+} catch (Exception $e) {
+  echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
+}
 ```
 
 ## 12.4 現場で使えるヒント
