@@ -9,24 +9,14 @@
 
 トランザクションがブロックヘッダーに含まれていることを検証します。この検証が成功すれば、トランザクションがブロックチェーンの合意によって承認されたものとみなすことができます。
 
-本章のサンプルスクリプトを実行する前に以下を実行して必要ライブラリを読み込んでおいてください。
-```js
-Buffer = require("/node_modules/buffer").Buffer;
-cat = require("/node_modules/catbuffer-typescript");
-sha3_256 = require('/node_modules/js-sha3').sha3_256;
-
-accountRepo = repo.createAccountRepository();
-blockRepo = repo.createBlockRepository();
-stateProofService = new sym.StateProofService(repo);
-```
-
 ### 検証するペイロード
 
 今回検証するトランザクションペイロードとそのトランザクションが記録されているとされるブロック高です。
 
-```js
-payload = 'C00200000000000093B0B985101C1BDD1BC2BF30D72F35E34265B3F381ECA464733E147A4F0A6B9353547E2E08189EF37E50D271BEB5F09B81CE5816BB34A153D2268520AF630A0A0E5C72B0D5946C1EFEE7E5317C5985F106B739BB0BC07E4F9A288417B3CD6D26000000000198414140770200000000002A769FB40000000076B455CFAE2CCDA9C282BF8556D3E9C9C0DE18B0CBE6660ACCF86EB54AC51B33B001000000000000DB000000000000000E5C72B0D5946C1EFEE7E5317C5985F106B739BB0BC07E4F9A288417B3CD6D26000000000198544198205C1A4CE06C45B3A896B1B2360E03633B9F36BF7F22338B000000000000000066653465353435393833444430383935303645394533424446434235313637433046394232384135344536463032413837364535303734423641303337414643414233303344383841303630353343353345354235413835323835443639434132364235343233343032364244444331443133343139464435353438323930334242453038423832304100000000006800000000000000B2D4FD84B2B63A96AA37C35FC6E0A2341CEC1FD19C8FFC8D93CCCA2B028D1E9D000000000198444198205C1A4CE06C45B3A896B1B2360E03633B9F36BF7F2233BC089179EBBE01A81400140035383435344434373631364336433635373237396800000000000000B2D4FD84B2B63A96AA37C35FC6E0A2341CEC1FD19C8FFC8D93CCCA2B028D1E9D000000000198444198205C1A4CE06C45B3A896B1B2360E03633B9F36BF7F223345ECB996EDDB9BEB1400140035383435344434373631364336433635373237390000000000000000B2D4FD84B2B63A96AA37C35FC6E0A2341CEC1FD19C8FFC8D93CCCA2B028D1E9D5A71EBA9C924EFA146897BE6C9BB3DACEFA26A07D687AC4A83C9B03087640E2D1DDAE952E9DDBC33312E2C8D021B4CC0435852C0756B1EBD983FCE221A981D02';
-height = 59639;
+```
+payload =
+  "2802000000000000A5151FD55D82351DD488DB5563DD328DA72B2AD25B513C1D0F7F78AFF4D35BA094ABF505C74E6D6BE1FA19F3E5AC60A85E1A4EDC4AC07DECC0E56C59D5D24F0B69A31A837EB7DE323F08CA52495A57BA0A95B52D1BB54CEA9A94C12A87B1CADB0000000002984141A0D70000000000000EEAD6810500000062E78B6170628861B4FC4FCA75210352ACDBD2378AC0A447A3DCF63F969366BB1801000000000000540000000000000069A31A837EB7DE323F08CA52495A57BA0A95B52D1BB54CEA9A94C12A87B1CADB000000000198544198A8D76FEF8382274D472EE377F2FF3393E5B62C08B4329D04000000000000000074783100000000590000000000000069A31A837EB7DE323F08CA52495A57BA0A95B52D1BB54CEA9A94C12A87B1CADB000000000198444198A8D76FEF8382274D472EE377F2FF3393E5B62C08B4329D6668A0DE72812AAE05000500746573743100000000000000590000000000000069A31A837EB7DE323F08CA52495A57BA0A95B52D1BB54CEA9A94C12A87B1CADB000000000198444198A8D76FEF8382274D472EE377F2FF3393E5B62C08B4329DBF85DADBFD54C48D050005007465737432000000000000000000000000000000662CEDF69962B1E0F1BF0C43A510DFB12190128B90F7FE9BA48B1249E8E10DBEEDD3B8A0555B4237505E3E0822B74BCBED8AA3663022413AFDA265BE1C55431ACAE3EA975AF6FD61DEFFA6A16CBA5174A16EF5553AE669D5803A0FA9D1424600";
+height = 686312;
 ```
 
 
@@ -34,35 +24,183 @@ height = 59639;
 
 トランザクションの内容を確認します。
 
-```js
-tx = sym.TransactionMapping.createFromPayload(payload);
-hash = sym.Transaction.createTransactionHash(payload,Buffer.from(generationHash, 'hex'));
-console.log(hash);
-console.log(tx);
+```php
+$tx = TransactionFactory::deserialize(hex2bin($payload));
+$hash = $facade->hashTransaction($tx);
+echo "\n===payload確認===" . PHP_EOL;
+echo $hash . PHP_EOL;
+print_r($tx);
 ```
 ###### 出力例
-```js
-> 257E2CAECF4B477235CA93C37090E8BE58B7D3812A012E39B7B55BA7D7FFCB20
-> AggregateTransaction
-    > cosignatures: Array(1)
-      0: AggregateTransactionCosignature
-        signature: "5A71EBA9C924EFA146897BE6C9BB3DACEFA26A07D687AC4A83C9B03087640E2D1DDAE952E9DDBC33312E2C8D021B4CC0435852C0756B1EBD983FCE221A981D02"
-        signer: PublicAccount
-          address: Address {address: 'TAQFYGSM4BWELM5IS2Y3ENQOANRTXHZWX57SEMY', networkType: 152}
-          publicKey: "B2D4FD84B2B63A96AA37C35FC6E0A2341CEC1FD19C8FFC8D93CCCA2B028D1E9D"
-      deadline: Deadline {adjustedValue: 3030349354}
-    > innerTransactions: Array(3)
-        0: TransferTransaction {type: 16724, networkType: 152, version: 1, deadline: Deadline, maxFee: UInt64, …}
-        1: AccountMetadataTransaction {type: 16708, networkType: 152, version: 1, deadline: Deadline, maxFee: UInt64, …}
-        2: AccountMetadataTransaction {type: 16708, networkType: 152, version: 1, deadline: Deadline, maxFee: UInt64, …}
-      maxFee: UInt64 {lower: 161600, higher: 0}
-      networkType: 152
-      signature: "93B0B985101C1BDD1BC2BF30D72F35E34265B3F381ECA464733E147A4F0A6B9353547E2E08189EF37E50D271BEB5F09B81CE5816BB34A153D2268520AF630A0A"
-    > signer: PublicAccount
-        address: Address {address: 'TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ', networkType: 152}
-        publicKey: "0E5C72B0D5946C1EFEE7E5317C5985F106B739BB0BC07E4F9A288417B3CD6D26"
-      transactionInfo: undefined
-      type: 16705
+```
+4A1C88BBFE6EB46111C2B02F7C7355DAE186E54132197C2CD6D51297846A1824
+SymbolSdk\Symbol\Models\AggregateCompleteTransactionV2 Object
+(
+    [transactionsHash] => SymbolSdk\Symbol\Models\Hash256 Object
+        (
+            [binaryData] => b�apb�a��O�u!R���7���G���?��f�
+        )
+
+    [transactions] => Array
+        (
+            [0] => SymbolSdk\Symbol\Models\EmbeddedTransferTransactionV1 Object
+                (
+                    [recipientAddress] => SymbolSdk\Symbol\Models\UnresolvedAddress Object
+                        (
+                            [binaryData] => ���o'MG.�w��3���2�
+                        )
+
+                    [mosaics] => Array
+                        (
+                        )
+
+                    [message] => tx1
+                    [transferTransactionBodyReserved_1:SymbolSdk\Symbol\Models\EmbeddedTransferTransactionV1:private] => 0
+                    [transferTransactionBodyReserved_2:SymbolSdk\Symbol\Models\EmbeddedTransferTransactionV1:private] => 0
+                    [signerPublicKey] => SymbolSdk\Symbol\Models\PublicKey Object
+                        (
+                            [binaryData] => i��~��2�RIZW�
+��-LꚔ�*����
+                        )
+
+                    [version] => 1
+                    [network] => SymbolSdk\Symbol\Models\NetworkType Object
+                        (
+                            [value] => 152
+                        )
+
+                    [type] => SymbolSdk\Symbol\Models\TransactionType Object
+                        (
+                            [value] => 16724
+                        )
+
+                    [embeddedTransactionHeaderReserved_1:SymbolSdk\Symbol\Models\EmbeddedTransaction:private] => 0
+                    [entityBodyReserved_1:SymbolSdk\Symbol\Models\EmbeddedTransaction:private] => 0
+                )
+
+            [1] => SymbolSdk\Symbol\Models\EmbeddedAccountMetadataTransactionV1 Object
+                (
+                    [targetAddress] => SymbolSdk\Symbol\Models\UnresolvedAddress Object
+                        (
+                            [binaryData] => ���o'MG.�w��3���2�
+                        )
+
+                    [scopedMetadataKey] => -5896758431726933914
+                    [valueSizeDelta] => 5
+                    [value] => test1
+                    [signerPublicKey] => SymbolSdk\Symbol\Models\PublicKey Object
+                        (
+                            [binaryData] => i��~��2�RIZW�
+��-LꚔ�*����
+                        )
+
+                    [version] => 1
+                    [network] => SymbolSdk\Symbol\Models\NetworkType Object
+                        (
+                            [value] => 152
+                        )
+
+                    [type] => SymbolSdk\Symbol\Models\TransactionType Object
+                        (
+                            [value] => 16708
+                        )
+
+                    [embeddedTransactionHeaderReserved_1:SymbolSdk\Symbol\Models\EmbeddedTransaction:private] => 0
+                    [entityBodyReserved_1:SymbolSdk\Symbol\Models\EmbeddedTransaction:private] => 0
+                )
+
+            [2] => SymbolSdk\Symbol\Models\EmbeddedAccountMetadataTransactionV1 Object
+                (
+                    [targetAddress] => SymbolSdk\Symbol\Models\UnresolvedAddress Object
+                        (
+                            [binaryData] => ���o'MG.�w��3���2�
+                        )
+
+                    [scopedMetadataKey] => -8231360769634433601
+                    [valueSizeDelta] => 5
+                    [value] => test2
+                    [signerPublicKey] => SymbolSdk\Symbol\Models\PublicKey Object
+                        (
+                            [binaryData] => i��~��2�RIZW�
+��-LꚔ�*����
+                        )
+
+                    [version] => 1
+                    [network] => SymbolSdk\Symbol\Models\NetworkType Object
+                        (
+                            [value] => 152
+                        )
+
+                    [type] => SymbolSdk\Symbol\Models\TransactionType Object
+                        (
+                            [value] => 16708
+                        )
+
+                    [embeddedTransactionHeaderReserved_1:SymbolSdk\Symbol\Models\EmbeddedTransaction:private] => 0
+                    [entityBodyReserved_1:SymbolSdk\Symbol\Models\EmbeddedTransaction:private] => 0
+                )
+
+        )
+
+    [cosignatures] => Array
+        (
+            [0] => SymbolSdk\Symbol\Models\Cosignature Object
+                (
+                    [version] => 0
+                    [signerPublicKey] => SymbolSdk\Symbol\Models\PublicKey Object
+                        (
+                            [binaryData] => f,���b���
+�                                                    C�߱!��������I��
+                        )
+
+                    [signature] => SymbolSdk\Symbol\Models\Signature Object
+                        (
+                            [binaryData] => �Ӹ�U[B7P^"�K�튣f0"A:��e�UC���Z��a����l�Qt�n�U:�iՀ:��BF
+                        )
+
+                )
+
+        )
+
+    [aggregateTransactionHeaderReserved_1:SymbolSdk\Symbol\Models\AggregateCompleteTransactionV2:private] => 0
+    [signature] => SymbolSdk\Symbol\Models\Signature Object
+        (
+            [binaryData] => ��]�5Ԉ�Uc�2��+*�[Q<x���[�����Nmk����`�^N�J�}���lY��O
+
+        )
+
+    [signerPublicKey] => SymbolSdk\Symbol\Models\PublicKey Object
+        (
+            [binaryData] => i��~��2�RIZW�
+��-LꚔ�*����
+        )
+
+    [version] => 2
+    [network] => SymbolSdk\Symbol\Models\NetworkType Object
+        (
+            [value] => 152
+        )
+
+    [type] => SymbolSdk\Symbol\Models\TransactionType Object
+        (
+            [value] => 16705
+        )
+
+    [fee] => SymbolSdk\Symbol\Models\Amount Object
+        (
+            [size] => 8
+            [value] => 55200
+        )
+
+    [deadline] => SymbolSdk\Symbol\Models\Timestamp Object
+        (
+            [size] => 8
+            [value] => 23653181966
+        )
+
+    [verifiableEntityHeaderReserved_1:SymbolSdk\Symbol\Models\Transaction:private] => 0
+    [entityBodyReserved_1:SymbolSdk\Symbol\Models\Transaction:private] => 0
+)
 ```
 
 ### 署名者の検証
@@ -70,78 +208,89 @@ console.log(tx);
 トランザクションがブロックに含まれていることが確認できれば自明ですが、  
 念のため、アカウントの公開鍵でトランザクションの署名を検証しておきます。
 
-```js
-res = alice.publicAccount.verifySignature(
-    tx.getSigningBytes([...Buffer.from(payload,'hex')],[...Buffer.from(generationHash,'hex')]),
-    "93B0B985101C1BDD1BC2BF30D72F35E34265B3F381ECA464733E147A4F0A6B9353547E2E08189EF37E50D271BEB5F09B81CE5816BB34A153D2268520AF630A0A"
-);
+```php
+$signature = new Signature($tx->signature);
+$res = $facade->verifyTransaction($tx, $signature);
+echo "\n===署名の検証===" . PHP_EOL;
+var_dump($res);
 console.log(res);
 ```
-```js
-> true
 ```
-
-getSigningBytesで署名の対象となる部分だけを取り出しています。  
-通常のトランザクションとアグリゲートトランザクションでは取り出す部分が異なるので注意が必要です。  
+true
+```
 
 ### マークルコンポーネントハッシュの計算
 
-トランザクションのハッシュ値には連署者の情報が含まれていません。  
-一方でブロックヘッダーに格納されるマークルルートはトランザクションのハッシュに連署者の情報が含めたものが格納されます。  
+トランザクションのハッシュ値には連署者の情報が含まれていません。
+一方でブロックヘッダーに格納されるマークルルートはトランザクションのハッシュに連署者の情報が含めたものが格納されます。
 そのためトランザクションがブロック内部に存在しているかどうかを検証する場合は、トランザクションハッシュをマークルコンポーネントハッシュに変換しておく必要があります。
 
-```js
-merkleComponentHash = hash;
-if( tx.cosignatures !== undefined && tx.cosignatures.length > 0){
-  
-  const hasher = sha3_256.create();
-  hasher.update(Buffer.from(hash, 'hex'));
-  for (cosignature of tx.cosignatures ){
-    hasher.update(Buffer.from(cosignature.signer.publicKey, 'hex'));
+```php
+$merkleComponentHash = $hash;
+
+if (isset($tx->cosignatures) && count($tx->cosignatures) > 0) {
+  $hasher = new MerkleHashBuilder();
+  $hash = new Hash256($hash);
+  $hasher->update($hash);
+  foreach ($tx->cosignatures as $cosignature) {
+    $hasher->update(new Hash256($cosignature->signerPublicKey));
   }
-  merkleComponentHash = hasher.hex().toUpperCase();
+  $merkleComponentHash = $hasher->final();
 }
-console.log(merkleComponentHash);
+echo strtoupper($merkleComponentHash) . PHP_EOL;
 ```
-```js
-> C8D1335F07DE05832B702CACB85B8EDAC2F3086543C76C9F56F99A0861E8F235
+
+###### 出力例
+
+```
+C61D17F89F5DEBC74A98A1321DB71EB7DC9111CDF1CF3C07C0E9A91FFE305AC3
 ```
 
 ### InBlockの検証
 
 ノードからマークルツリーを取得し、先ほど計算したmerkleComponentHashからブロックヘッダーのマークルルートが導出できることを確認します。
 
-```js
-function validateTransactionInBlock(leaf,HRoot,merkleProof){
-
-  if (merkleProof.length === 0) {
-    // There is a single item in the tree, so HRoot' = leaf.
-    return leaf.toUpperCase() === HRoot.toUpperCase();
+```php
+function validateTransactionInBlock($leaf, $HRoot, $merkleProof) {
+  if (count($merkleProof) === 0) {
+      // There is a single item in the tree, so HRoot' = leaf.
+      return strtoupper($leaf) === strtoupper($HRoot);
   }
 
-  const HRoot0 = merkleProof.reduce((proofHash, pathItem) => {
-    const hasher = sha3_256.create();
-    if (pathItem.position === sym.MerklePosition.Left) {
-      return hasher.update(Buffer.from(pathItem.hash + proofHash, 'hex')).hex();
+  $HRoot0 = array_reduce($merkleProof, function($proofHash, $pathItem) {
+    $hasher = new MerkleHashBuilder();
+    if ($pathItem['position'] === 'left') {
+      $hasher->update(new Hash256(hex2bin($pathItem['hash'])));
+      $hasher->update($proofHash);
     } else {
-      return hasher.update(Buffer.from(proofHash + pathItem.hash, 'hex')).hex();
+      $hasher->update($proofHash);
+      $hasher->update(new Hash256(hex2bin($pathItem['hash'])));
     }
-  }, leaf);
-  return HRoot.toUpperCase() === HRoot0.toUpperCase();
+    return $hasher->final();
+  }, $leaf);
+
+  return strtoupper($HRoot) === strtoupper($HRoot0);
 }
 
-//トランザクションから計算
-leaf = merkleComponentHash.toLowerCase();//merkleComponentHash
+$leaf = new Hash256($merkleComponentHash);
 
-//ノードから取得
-HRoot = (await blockRepo.getBlockByHeight(height).toPromise()).blockTransactionsHash;
-merkleProof = (await blockRepo.getMerkleTransaction(height, leaf).toPromise()).merklePath;
+// ノードから取得
+$config = new Configuration();
+$config->setHost($NODE_URL);
+$client = new GuzzleHttp\Client();
+$blockApiInstance = new BlockRoutesApi($client, $config);
 
-result = validateTransactionInBlock(leaf,HRoot,merkleProof);
-console.log(result);
+$HRoot = $blockApiInstance->getBlockByHeight($height);
+$HRootHash = new Hash256($HRoot["block"]["transactions_hash"]);
+
+$merkleProof = $blockApiInstance->getMerkleTransaction($height, $leaf);
+
+$result = validateTransactionInBlock($leaf, $HRootHash, $merkleProof["merkle_path"]);
+echo "===InBlockの検証===" . PHP_EOL;
+var_dump($result);
 ```
-```js
-> true
+```
+bool(true)
 ```
 
 トランザクションの情報がブロックヘッダーに含まれていることが確認できました。
