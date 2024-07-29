@@ -25,7 +25,7 @@ $apiInstance = new TransactionRoutesApi($client, $config);
 $aliceKey = $facade->createAccount(new PrivateKey($alicePrivateKey));
 // $bobPrivateKey= PrivateKey::random();
 // echo "Bob's private key: " . $bobPrivateKey. PHP_EOL;
-$bobPrivateKey = 'B34C8DEEADF5FE608CB2FD245C9ECF8A70DAD7F7E66CB22614BAF90E6A1B40FF';
+$bobPrivateKey = 'B34C8DEEADF5FE608CB2FD245C9ECF8A70DAD7F7E66CB22614BAF*********';
 $bobKey = $facade->createAccount(new PrivateKey($bobPrivateKey));
 
 $namespaceIds = IdGenerator::generateNamespacePath('symbol.xym');
