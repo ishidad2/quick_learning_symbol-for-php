@@ -251,28 +251,7 @@ C61D17F89F5DEBC74A98A1321DB71EB7DC9111CDF1CF3C07C0E9A91FFE305AC3
 ノードからマークルツリーを取得し、先ほど計算したmerkleComponentHashからブロックヘッダーのマークルルートが導出できることを確認します。
 
 ```php
-function validateTransactionInBlock($leaf, $HRoot, $merkleProof) {
-  if (count($merkleProof) === 0) {
-      // There is a single item in the tree, so HRoot' = leaf.
-      return strtoupper($leaf) === strtoupper($HRoot);
-  }
-
-  $HRoot0 = array_reduce($merkleProof, function($proofHash, $pathItem) {
-    $hasher = new MerkleHashBuilder();
-    if ($pathItem['position'] === 'left') {
-      $hasher->update(new Hash256(hex2bin($pathItem['hash'])));
-      $hasher->update($proofHash);
-    } else {
-      $hasher->update($proofHash);
-      $hasher->update(new Hash256(hex2bin($pathItem['hash'])));
-    }
-    return $hasher->final();
-  }, $leaf);
-
-  return strtoupper($HRoot) === strtoupper($HRoot0);
-}
-
-$leaf = new Hash256($merkleComponentHash);
+$leafhash = new Hash256($merkleComponentHash);
 
 // ノードから取得
 $config = new Configuration();
@@ -283,11 +262,12 @@ $blockApiInstance = new BlockRoutesApi($client, $config);
 $HRoot = $blockApiInstance->getBlockByHeight($height);
 $HRootHash = new Hash256($HRoot["block"]["transactions_hash"]);
 
-$merkleProof = $blockApiInstance->getMerkleTransaction($height, $leaf);
+$merkleProof = $blockApiInstance->getMerkleTransaction($height, $leafhash);
+$merklePath = $merkleProof["merkle_path"];
 
-$result = validateTransactionInBlock($leaf, $HRootHash, $merkleProof["merkle_path"]);
+$resutl = Merkle::proveMerkle($leafhash, $merklePath, $HRootHash);
 echo "===InBlockの検証===" . PHP_EOL;
-var_dump($result);
+var_dump($resutl);
 ```
 ```
 bool(true)
@@ -302,121 +282,221 @@ bool(true)
 
 ### normalブロックの検証
 
-```js
-block = await blockRepo.getBlockByHeight(height).toPromise();
-previousBlock = await blockRepo.getBlockByHeight(height - 1).toPromise();
-if(block.type ===  sym.BlockType.NormalBlock){
-    
-  hasher = sha3_256.create();
-  hasher.update(Buffer.from(block.signature,'hex')); //signature
-  hasher.update(Buffer.from(block.signer.publicKey,'hex')); //publicKey
-  hasher.update(cat.GeneratorUtils.uintToBuffer(   block.version, 1));
-  hasher.update(cat.GeneratorUtils.uintToBuffer(   block.networkType, 1));
-  hasher.update(cat.GeneratorUtils.uintToBuffer(   block.type, 2));
-  hasher.update(cat.GeneratorUtils.uint64ToBuffer([block.height.lower    ,block.height.higher]));
-  hasher.update(cat.GeneratorUtils.uint64ToBuffer([block.timestamp.lower ,block.timestamp.higher]));
-  hasher.update(cat.GeneratorUtils.uint64ToBuffer([block.difficulty.lower,block.difficulty.higher]));
-  hasher.update(Buffer.from(block.proofGamma,'hex'));
-  hasher.update(Buffer.from(block.proofVerificationHash,'hex'));
-  hasher.update(Buffer.from(block.proofScalar,'hex'));
-  hasher.update(Buffer.from(previousBlock.hash,'hex'));
-  hasher.update(Buffer.from(block.blockTransactionsHash,'hex'));
-  hasher.update(Buffer.from(block.blockReceiptsHash,'hex'));
-  hasher.update(Buffer.from(block.stateHash,'hex'));
-  hasher.update(sym.RawAddress.stringToAddress(block.beneficiaryAddress.address));
-  hasher.update(cat.GeneratorUtils.uintToBuffer(   block.feeMultiplier, 4));
-  hash = hasher.hex().toUpperCase();
-  console.log(hash === block.hash);
+```php
+/**
+ * Converts a given number to a reversed hex string of specified byte length.
+ *
+ * @param int|string $number The number to convert.
+ * @param int $bytes The byte length of the resulting hex string.
+ * @return string The reversed hex string.
+ */
+function reverseHex($number, $bytes = 1) {
+  // 10進数を16進数に変換し、必要に応じてゼロパディング
+  $hex = str_pad(dechex($number), $bytes * 2, "0", STR_PAD_LEFT);
+  // 16進数の文字列をバイナリデータに変換
+  $bin = hex2bin($hex);
+  // バイナリデータを逆順にする
+  $reversed = strrev($bin);
+  // バイナリデータを16進数の文字列に変換
+  $reversedHex = bin2hex($reversed);
+  return $reversedHex;
+}
+
+$blockInfo = $blockApiInstance->getBlockByHeight($height);
+$block = $blockInfo["block"];
+$previousBlockHash = $blockApiInstance->getBlockByHeight($height - 1);
+$previousBlockHash = $previousBlockHash["meta"]["hash"];
+
+if ($block['type'] === BlockType::NORMAL) {
+  $hasher = hash_init('sha3-256');
+
+  hash_update($hasher, hex2bin($block['signature'])); // signature
+  hash_update($hasher, hex2bin($block['signer_public_key'])); // publicKey
+
+  hash_update($hasher, hex2bin(reverseHex($block['version'],1)));
+  hash_update($hasher, hex2bin(reverseHex($block['network'], 1)));
+  hash_update($hasher, hex2bin(reverseHex($block['type'], 2)));
+  hash_update($hasher, hex2bin(reverseHex($block['height'], 8)));
+  hash_update($hasher, hex2bin(reverseHex($block['timestamp'], 8)));
+  hash_update($hasher, hex2bin(reverseHex($block['difficulty'], 8)));
+
+  hash_update($hasher, hex2bin($block['proof_gamma']));
+  hash_update($hasher, hex2bin($block['proof_verification_hash']));
+  hash_update($hasher, hex2bin($block['proof_scalar']));
+  hash_update($hasher, hex2bin($previousBlockHash));
+  hash_update($hasher, hex2bin($block['transactions_hash']));
+  hash_update($hasher, hex2bin($block['receipts_hash']));
+  hash_update($hasher, hex2bin($block['state_hash']));
+  hash_update($hasher, hex2bin($block['beneficiary_address']));
+  hash_update($hasher, hex2bin(reverseHex($block['fee_multiplier'], 4)));
+
+  $hash = strtoupper(bin2hex(hash_final($hasher, true)));
+
+  echo "===ブロックヘッダーの検証===" . PHP_EOL;
+  var_dump($hash === $blockInfo['meta']['hash']);
 }
 ```
 
-true が出力されればこのブロックハッシュは前ブロックハッシュ値の存在を認知していることになります。  
-同様にしてn番目のブロックがn-1番目のブロックを存在を確認し、最後に検証中のブロックにたどり着きます。  
+true が出力されればこのブロックハッシュは前ブロックハッシュ値の存在を認知していることになります。
+同様にしてn番目のブロックがn-1番目のブロックの存在を確認し、最後に検証中のブロックにたどり着きます。
 
-これで、どのノードに問い合わせても確認可能な既知のファイナライズブロックが、  
-検証したいブロックの存在に支えられていることが分かりました。  
+これで、どのノードに問い合わせても確認可能な既知のファイナライズブロックが、
+検証したいブロックの存在に支えられていることが分かりました。
 
 ### importanceブロックの検証
 
-importanceBlockは、importance値の再計算が行われるブロック(720ブロック毎、テストネットは180ブロック毎)です。  
-NormalBlockに加えて以下の情報が追加されています。  
+importanceBlockは、importance値の再計算が行われるブロック(720ブロック毎、テストネットは180ブロック毎)です。
+NormalBlockに加えて以下の情報が追加されています。
 
 - votingEligibleAccountsCount
 - harvestingEligibleAccountsCount
 - totalVotingBalance
 - previousImportanceBlockHash
 
-```js
-block = await blockRepo.getBlockByHeight(height).toPromise();
-previousBlock = await blockRepo.getBlockByHeight(height - 1).toPromise();
-if(block.type ===  sym.BlockType.ImportanceBlock){
+```php
+$height = 1440;
+// height = Importance Block のブロック高
+$blockInfo = $blockApiInstance->getBlockByHeight($height);
+$block = $blockInfo["block"];
+$previousBlockHash = $blockApiInstance->getBlockByHeight($height - 1);
+$previousBlockHash = $previousBlockHash["meta"]["hash"];
 
-  hasher = sha3_256.create();
-  hasher.update(Buffer.from(block.signature,'hex')); //signature
-  hasher.update(Buffer.from(block.signer.publicKey,'hex')); //publicKey
-  hasher.update(cat.GeneratorUtils.uintToBuffer(   block.version, 1));
-  hasher.update(cat.GeneratorUtils.uintToBuffer(   block.networkType, 1));
-  hasher.update(cat.GeneratorUtils.uintToBuffer(   block.type, 2));
-  hasher.update(cat.GeneratorUtils.uint64ToBuffer([block.height.lower    ,block.height.higher]));
-  hasher.update(cat.GeneratorUtils.uint64ToBuffer([block.timestamp.lower ,block.timestamp.higher]));
-  hasher.update(cat.GeneratorUtils.uint64ToBuffer([block.difficulty.lower,block.difficulty.higher]));
-  hasher.update(Buffer.from(block.proofGamma,'hex'));
-  hasher.update(Buffer.from(block.proofVerificationHash,'hex'));
-  hasher.update(Buffer.from(block.proofScalar,'hex'));
-  hasher.update(Buffer.from(previousBlock.hash,'hex'));
-  hasher.update(Buffer.from(block.blockTransactionsHash,'hex'));
-  hasher.update(Buffer.from(block.blockReceiptsHash,'hex'));
-  hasher.update(Buffer.from(block.stateHash,'hex'));
-  hasher.update(sym.RawAddress.stringToAddress(block.beneficiaryAddress.address));
-  hasher.update(cat.GeneratorUtils.uintToBuffer(   block.feeMultiplier, 4));
-  hasher.update(cat.GeneratorUtils.uintToBuffer(block.votingEligibleAccountsCount,4));
-  hasher.update(cat.GeneratorUtils.uint64ToBuffer([block.harvestingEligibleAccountsCount.lower,block.harvestingEligibleAccountsCount.higher]));
-  hasher.update(cat.GeneratorUtils.uint64ToBuffer([block.totalVotingBalance.lower,block.totalVotingBalance.higher]));
-  hasher.update(Buffer.from(block.previousImportanceBlockHash,'hex'));
+if($block['type'] === BlockType::IMPORTANCE){
+  $hasher = hash_init('sha3-256');
 
-  hash = hasher.hex().toUpperCase();
-  console.log(hash === block.hash);
+  hash_update($hasher, hex2bin($block['signature'])); // signature
+  hash_update($hasher, hex2bin($block['signer_public_key'])); // publicKey
+
+  hash_update($hasher, hex2bin(reverseHex($block['version'],1)));
+  hash_update($hasher, hex2bin(reverseHex($block['network'],1)));
+  hash_update($hasher, hex2bin(reverseHex($block['type'],1)));
+  hash_update($hasher, hex2bin(reverseHex($block['height'], 8)));
+  hash_update($hasher, hex2bin(reverseHex($block['timestamp'], 8)));
+  hash_update($hasher, hex2bin(reverseHex($block['difficulty'], 8)));
+
+  hash_update($hasher, hex2bin($block['proof_gamma']));
+  hash_update($hasher, hex2bin($block['proof_verification_hash']));
+  hash_update($hasher, hex2bin($block['proof_scalar']));
+  hash_update($hasher, hex2bin($previousBlockHash));
+  hash_update($hasher, hex2bin($block['transactions_hash']));
+  hash_update($hasher, hex2bin($block['receipts_hash']));
+  hash_update($hasher, hex2bin($block['state_hash']));
+  hash_update($hasher, hex2bin($block['beneficiary_address']));
+  hash_update($hasher, hex2bin(reverseHex($block['fee_multiplier'], 4)));
+  hash_update($hasher, hex2bin(reverseHex($block['voting_eligible_accounts_count'], 4)));
+  hash_update($hasher, hex2bin(reverseHex($block['harvesting_eligible_accounts_count'], 8)));
+  hash_update($hasher, hex2bin(reverseHex($block['total_voting_balance'], 8)));
+  hash_update($hasher, hex2bin($block['previous_importance_block_hash']));
+
+  $hash = strtoupper(bin2hex(hash_final($hasher, true)));
+
+  echo "===importanceブロックの検証===" . PHP_EOL;
+  var_dump($hash === $blockInfo['meta']['hash']);
 }
 ```
 
 後述するアカウントやメタデータの検証のために、stateHashSubCacheMerkleRootsを検証しておきます。
 
 ### stateHashの検証
-```js
-console.log(block);
+```php
+print_r($blockInfo);
 ```
-```js
-> NormalBlockInfo
-    height: UInt64 {lower: 59639, higher: 0}
-    hash: "B5F765D388B5381AC93659F501D5C68C00A2EE7DF4548C988E97F809B279839B"
-    stateHash: "9D6801C49FE0C31ADE5C1BB71019883378016FA35230B9813CA6BB98F7572758"
-  > stateHashSubCacheMerkleRoots: Array(9)
-        0: "4578D33DD0ED5B8563440DA88F627BBC95A174C183191C15EE1672C5033E0572"
-        1: "2C76DAD84E4830021BE7D4CF661218973BA467741A1FC4663B54B5982053C606"
-        2: "259FB9565C546BAD0833AD2B5249AA54FE3BC45C9A0C64101888AC123A156D04"
-        3: "58D777F0AA670440D71FA859FB51F8981AF1164474840C71C1BEB4F7801F1B27"
-        4: "C9092F0652273166991FA24E8B115ACCBBD39814B8820A94BFBBE3C433E01733"
-        5: "4B53B8B0E5EE1EEAD6C1498CCC1D839044B3AE5F85DD8C522A4376C2C92D8324"
-        6: "132324AF5536EC9AA85B2C1697F6B357F05EAFC130894B210946567E4D4E9519"
-        7: "8374F46FBC759049F73667265394BD47642577F16E0076CBB7B0B9A92AAE0F8E"
-        8: "45F6AC48E072992343254F440450EF4E840D8386102AD161B817E9791ABC6F7F"
+```php
+SymbolRestClient\Model\BlockInfoDTO Object
+(
+    [openAPINullablesSetToNull:protected] => Array
+        (
+        )
+
+    [container:protected] => Array
+        (
+            [id] => 644612E35FF7CEC60709D2B9
+            [meta] => SymbolRestClient\Model\BlockMetaDTO Object
+                (
+                    [openAPINullablesSetToNull:protected] => Array
+                        (
+                        )
+
+                    [container:protected] => Array
+                        (
+                            [hash] => BC3AA1488BFF936B82D0E610C127AE7943A189B44D8B0989E7E5F9EE2B5A6C2F
+                            [total_fee] => 18400
+                            [generation_hash] => 9B5F2DA8E11FE168476EAAEBA4C7CA1902709717A16DF4E01DC9E4135263B145
+                            [state_hash_sub_cache_merkle_roots] => Array
+                                (
+                                    [0] => F515B3574DBC4E25970911D31D3EC904FEC2F53A913818DD22767F0803AAA448
+                                    [1] => 2A9CC5948DF4D61A242BD4FBFE4059BD28035F92AF8C939E1619E555E228B365
+                                    [2] => 916F3DC4F4570B0605BE8D5B9F0AC6D7C9D6512C50317145667B8EC4A9C034CC
+                                    [3] => CB1E5FB72D99DCF3323C61008ACDD88601E09627DAF6F26CB9A4D212DE2FAAE6
+                                    [4] => 7BD54F7855071892E30C38209069FEDA4053753631F29D9EFBFDE19D3D46986D
+                                    [5] => 71A589B4B0F1246A4959D7DDFB1A1DD52239F8061A000A6AA77EBE0CAFA82C13
+                                    [6] => 5BCA0065AFA492A9285B16B046A82E09F273ED09624E48D4A5172565C95C41F1
+                                    [7] => 5370FB2FFEE6CDD1BE697D98B30BC405F2456960A3047D8806D2CDA919245B31
+                                    [8] => DA846A9D0C7E6C284B1ED0FFE11CFCA35CE659C2B3F8E562330974D9CCE08BDF
+                                )
+
+                            [total_transactions_count] => 1
+                            [transactions_count] => 1
+                            [statements_count] => 2
+                        )
+
+                )
+
+            [block] => SymbolRestClient\Model\BlockInfoDTOBlock Object
+                (
+                    [openAPINullablesSetToNull:protected] => Array
+                        (
+                        )
+
+                    [container:protected] => Array
+                        (
+                            [size] => 608
+                            [signature] => 0D2A4A8833AC55FA18462D0321DFD4E1CC0653D46DD3BC4B08EB935E3BD84F8878F5D2416A36179A137F1475A877BDAE1F722A2FBD6D87D2773507538E81C001
+                            [signer_public_key] => 87EEE5E3D69BAA60C093FC2080BA5D36E623C5C0BCDC529B8712A9B6212420D7
+                            [version] => 1
+                            [network] => 152
+                            [type] => 33347
+                            [height] => 1440
+                            [timestamp] => 109140035
+                            [difficulty] => 10000000000000
+                            [proof_gamma] => 6B0296960EF59524332C789834BE0D859076722B59C1233432A0D5506E356BC2
+                            [proof_verification_hash] => 0C8F8F162DD82A3F26D3019289365B57
+                            [proof_scalar] => 8EE0BEC47CFD1A77CDA848A6CFAFF02EAFC05EEE02D374BA7758BEFE22090F07
+                            [previous_block_hash] => 06EBD4C3C2C654FFD75463FF2F98DC26F5629446840DFEAC4803B29B5765E084
+                            [transactions_hash] => 5AB5E7A0E087BB3FB788BFC44443240E53C4F53AE558C23A60DA8140C6CCC50D
+                            [receipts_hash] => 374F773A5003D374FD185FF6EB2BE2997333108A600A38E85074E627261A420E
+                            [state_hash] => 518861727944E73D76EE10173DFE0ADA56BF252890BC27C75246989B2046B803
+                            [beneficiary_address] => 98BE9AC4CD3E833736762A12A63065FF42E476744E6FC597
+                            [fee_multiplier] => 100
+                            [voting_eligible_accounts_count] => 4
+                            [harvesting_eligible_accounts_count] => 18
+                            [total_voting_balance] => 19000392156923
+                            [previous_importance_block_hash] => 157F710AB66239C09F262BF2F243568F2E25B58FA16E85A47E22966D20041466
+                        )
+
+                )
+
+        )
+
+)
 ```
-```js
-hasher = sha3_256.create();
-hasher.update(Buffer.from(block.stateHashSubCacheMerkleRoots[0],'hex')); //AccountState
-hasher.update(Buffer.from(block.stateHashSubCacheMerkleRoots[1],'hex')); //Namespace
-hasher.update(Buffer.from(block.stateHashSubCacheMerkleRoots[2],'hex')); //Mosaic
-hasher.update(Buffer.from(block.stateHashSubCacheMerkleRoots[3],'hex')); //Multisig
-hasher.update(Buffer.from(block.stateHashSubCacheMerkleRoots[4],'hex')); //HashLockInfo
-hasher.update(Buffer.from(block.stateHashSubCacheMerkleRoots[5],'hex')); //SecretLockInfo
-hasher.update(Buffer.from(block.stateHashSubCacheMerkleRoots[6],'hex')); //AccountRestriction
-hasher.update(Buffer.from(block.stateHashSubCacheMerkleRoots[7],'hex')); //MosaicRestriction
-hasher.update(Buffer.from(block.stateHashSubCacheMerkleRoots[8],'hex')); //Metadata
-hash = hasher.hex().toUpperCase();
-console.log(block.stateHash === hash);
+```php
+$hasher = hash_init('sha3-256');
+hash_update($hasher, hex2bin($blockInfo['meta']['state_hash_sub_cache_merkle_roots'][0]));
+hash_update($hasher, hex2bin($blockInfo['meta']['state_hash_sub_cache_merkle_roots'][1]));
+hash_update($hasher, hex2bin($blockInfo['meta']['state_hash_sub_cache_merkle_roots'][2]));
+hash_update($hasher, hex2bin($blockInfo['meta']['state_hash_sub_cache_merkle_roots'][3]));
+hash_update($hasher, hex2bin($blockInfo['meta']['state_hash_sub_cache_merkle_roots'][4]));
+hash_update($hasher, hex2bin($blockInfo['meta']['state_hash_sub_cache_merkle_roots'][5]));
+hash_update($hasher, hex2bin($blockInfo['meta']['state_hash_sub_cache_merkle_roots'][6]));
+hash_update($hasher, hex2bin($blockInfo['meta']['state_hash_sub_cache_merkle_roots'][7]));
+hash_update($hasher, hex2bin($blockInfo['meta']['state_hash_sub_cache_merkle_roots'][8]));
+$hash = strtoupper(bin2hex(hash_final($hasher, true)));
+echo "===stateHashの検証===" . PHP_EOL;
+var_dump($hash === $blockInfo['block']['state_hash']);
 ```
-```js
-> true
+```php
+bool(true)
 ```
 
 ブロックヘッダーの検証に利用した9個のstateがstateHashSubCacheMerkleRootsから構成されていることがわかります。
