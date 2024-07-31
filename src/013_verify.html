@@ -46,9 +46,10 @@
     // 葉のハッシュ値取得関数
     function getLeafHash(encodedPath, leafValue) {
       const hasher = sha3_256.create();
-      return symbolSdk.utils.uint8ToHex(
+      const res = symbolSdk.utils.uint8ToHex(
         hasher.update(symbolSdk.utils.hexToUint8(encodedPath + leafValue)).digest(),
       );
+      return res;
     }
 
     // 枝のハッシュ値取得関数
@@ -97,7 +98,6 @@
 
       const treeRootHash = linkHash; // 最後のlinkHashはrootHash
       let treePathHash = bit + merkleLeaf.path;
-
       if (treePathHash.length % 2 == 1) {
         treePathHash = treePathHash.slice(0, -1);
       }
@@ -301,8 +301,307 @@
         return json;
       });
 
+      // ここまで実装
+
+      const stateProofSample = {
+        "raw": "0000FFFF5CD850F606F52221B7ECF134BFDC76F77E4C11C202F7D66A9AD50FA49C382284323C66A3DF940484F52F41D11036A4493C33BE5D5FAD99F1D50EC4BC12BA65FB9D946D662FBDB2DFCF8FB183E6732E06131697517172AE8A5864785DEB23DDF927CEF3D1445058847ED7286181D699539BA14166046FD0B743A676C2591E4D4F601C52E55EAAB5301D74A27F0FA4587CF7DC25BFE6A06B6B8E0D775FF9B46A2CC5D74F00028014ED4204E1216C12BD4DE1194BF8595B910157E24D3C8B92632FDF3746AA45A08F83D6ABAF5197D331CF6AFFCD4488F648D1168E8B9EDDA2E388ABE3471668FE0B40309DCC71873284159BD3668BE603F445B4F145AE72E1FD6AEB4BD62AE08D6ACDF440BF197EF574EF7B697DBB150594FAD65F6784621595EBA8F49AC7109E5B00F75C1777408E11DF5040312A25D6DD887471AA725F2DC4947D06E16280B087DFEBDF2AC364D110419E43D7B77A498FF38FAC7CB24D93E77E65F7231E3F88B286C96313148205FB9E84131FF0FF205A580447473035C638A6507AEEC2E1CD7897C6426A574C3559F42F741EC2DC019901A9299A36ED2FCE81FFE5298AFEBD1A749A1DF808B467E68F2DE398FEC0C79FFA650A8B4278160F1CD0841107D1D72E2FB10E1ED228081E84E82932EEAF7548774F63041BC59FD0D4A1D6D670480ADD4EBCBF1275424F59C6ECF14586D58A6317384DC67D44414E880000FFFF4900ABA0DD43CF51F6AB43D599CC421CD71B989FE34D94D73856A6A9D936545BF0204617CC079842B5CA0C50D3CFBB5B80C3075A6B5B9DEC7D868630C44C814205A359026AA3227CC54A7A9F0DD3B6A7329F6A51256EEDBCC5288CC70DA8B7DC69D18A468FFFB499EB63373768F0058447E0BB15F67BFF4C2F9968F63286B4E1FBB03A8AA5D1826E61AE2338771A1818B238DBD346ADC007D3D2C6A405E74E7ECDBEDFD7C08BCB7F6D206CE9CC7798F950E9E1AB78D8F88E69C25C06654B0371C461B7992B63A13EF3D416FDA40CD6BBEB75D0A8F032E439902798676B169B19582056F219579473DA76BDD440A6C74C864E3263F7679A8B01F0BA7BB7971B723DF88BC6920E13697D02FAE179E96E314EA6CC4F8A67295CF1ABB888EA1A70946B1A2EF28B6D74C9032F1ACBD009731AFEFDB2F8DDE5F9775CB76BA6761129656BB7C288425509112655924030B18C0F99FDE5ADB51E00139FF52BD1DC51B3062EAF2ACEC0DFA290E751CD708062BFED142140EDD476203546973A4349DD2CAE19CACFD89C947EB83E0083D7BBCEDAEA6B502B749511FCB0345761C7C08122DEA855B9AA5EA891925C17780925575A41D0712D2728779DCBE1C5B65F87D655AA270F74790664D81BC1D116C9C714D3E5834F78A1885FCA8BF9C3D59EB1526AD8E8D5476BE112A268EC7F39D6DF1FD127ED8C6A8D05530D25919C69E9DD04EAFD0000FFFF8B3EDCF2DE6CB33EFA4B3DEA075023639B0EACF6276ED894B323C21D197CA06E22F5521A731A6A8814E5F56CF151BA576BEC49122E94B0290DF48CD946F5ACABFCE5F77912083EDC2E513693994D39782A68B2273E7949199D96C7EE34BABE611AD5A8C59431664D721819BCFA1353B74B87BFA4A3C9B868C04CB807357424630DDFABCD6C781DF30B49A6707558BE954A8828EB6B1EE59DBE8F255CCE96C356F6113B7A150102CDA15310842824F6B4D9DDBEC001509E3EF9D9D20357ADE2D096E6B36C9017F680759FB972792372FC9D48D151542E422485B4B3568F070E1A82F1E447E0D466EF56980F6F78EBD5333B073C8E516985CF1835AE666D3F8EA1A3B4317546B4AAA40234F176B4E540C957F085C43AC33DE3139ABDB92D3BA5A3730F137CCCD46559C3350C9F076F24E030DCFDF6BC226A35C0D8392E82BEF62F8B839513AD6227BD1B5D62DF38EF7AC9D3DA62D8B6FCE2C10B8E18D8DB6660A48AEDACEBAE13E53E773B820268244D9839CB7695DFC29AFC42141C30B5472A08CCA233D09DB5986B8E21CA7B9A7A87CE43CE71DB266D279F048D6E707EC8C87F7960474585B1E6B96D61D6B52A1B850B6223463751D917099A64A7C05C4989132DDDD04876A8723938221B6654691B50B8C08D8A92AFD7AD76D65C5DDF80C3F0BE850A3D400CA21AB599FCA1A74120B66DBF744096A11281CC49028258F2CD150000F4DF513DB50C2C5D5ADFEE727C4DAB2FD15D67D445DACE0EE4A91D2316BB6B5184DBB6BFC203326047B79F350E8D397B7278B52B05B8061CBAE31A1E3E75EB374A11A196EDBEDD6025B5A1C91D07033067FD7C231954FFD68CA7845053F6E0DECDE9BE463563FE9855B88AC5EB5D4C648FCD0ACBF88FB470B4A156C6DF699469A7B03879965782C68D7BAFD9A3A5318606AC7720633E05F16A74998C979CE7CF6F4DD92E9488B9A54EBF96760969B05E260B97E4FD0C4BCA87193ED88CC50C6A6610D5AD2127DD636D531F26609A6F0055BB5B607C978BF4E8C7E3515125A76A956B65DFF47A75A11595830C0B6E03E44DC3E869A57EFC51632350B4A999D69BB24E38E66E2F0B029AE498F6EE0DC22C4F2836AF9F0E02B7E4EDD94A13EF0451FDA517F2795C8028161B541527BE46B12353CCADE3E01FCEF52C71FE5BC6AEDEA6B7E64C24870C17F255F96E19120929AF366C81ADCDFB585D9976F3F26C855EF71CAAC621E07225A53114FBDE5A4EA0C79860743C0122F25A26BAAD0638C697E5FDFF3C0F84DD2830B37539EF766DD37A0DA6150FB8E14AEE2ED2773262F4AF14CF39B9DF440E50AF995D7E8DD94FA38BF68033CC39053B8C9FA1BFC2AA25C99F91",
+        "tree": [
+            {
+                "type": 0,
+                "path": "",
+                "encodedPath": "00",
+                "nibbleCount": 0,
+                "linkMask": "FFFF",
+                "links": [
+                    {
+                        "bit": "0",
+                        "link": "5CD850F606F52221B7ECF134BFDC76F77E4C11C202F7D66A9AD50FA49C382284"
+                    },
+                    {
+                        "bit": "1",
+                        "link": "323C66A3DF940484F52F41D11036A4493C33BE5D5FAD99F1D50EC4BC12BA65FB"
+                    },
+                    {
+                        "bit": "2",
+                        "link": "9D946D662FBDB2DFCF8FB183E6732E06131697517172AE8A5864785DEB23DDF9"
+                    },
+                    {
+                        "bit": "3",
+                        "link": "27CEF3D1445058847ED7286181D699539BA14166046FD0B743A676C2591E4D4F"
+                    },
+                    {
+                        "bit": "4",
+                        "link": "601C52E55EAAB5301D74A27F0FA4587CF7DC25BFE6A06B6B8E0D775FF9B46A2C"
+                    },
+                    {
+                        "bit": "5",
+                        "link": "C5D74F00028014ED4204E1216C12BD4DE1194BF8595B910157E24D3C8B92632F"
+                    },
+                    {
+                        "bit": "6",
+                        "link": "DF3746AA45A08F83D6ABAF5197D331CF6AFFCD4488F648D1168E8B9EDDA2E388"
+                    },
+                    {
+                        "bit": "7",
+                        "link": "ABE3471668FE0B40309DCC71873284159BD3668BE603F445B4F145AE72E1FD6A"
+                    },
+                    {
+                        "bit": "8",
+                        "link": "EB4BD62AE08D6ACDF440BF197EF574EF7B697DBB150594FAD65F6784621595EB"
+                    },
+                    {
+                        "bit": "9",
+                        "link": "A8F49AC7109E5B00F75C1777408E11DF5040312A25D6DD887471AA725F2DC494"
+                    },
+                    {
+                        "bit": "A",
+                        "link": "7D06E16280B087DFEBDF2AC364D110419E43D7B77A498FF38FAC7CB24D93E77E"
+                    },
+                    {
+                        "bit": "B",
+                        "link": "65F7231E3F88B286C96313148205FB9E84131FF0FF205A580447473035C638A6"
+                    },
+                    {
+                        "bit": "C",
+                        "link": "507AEEC2E1CD7897C6426A574C3559F42F741EC2DC019901A9299A36ED2FCE81"
+                    },
+                    {
+                        "bit": "D",
+                        "link": "FFE5298AFEBD1A749A1DF808B467E68F2DE398FEC0C79FFA650A8B4278160F1C"
+                    },
+                    {
+                        "bit": "E",
+                        "link": "D0841107D1D72E2FB10E1ED228081E84E82932EEAF7548774F63041BC59FD0D4"
+                    },
+                    {
+                        "bit": "F",
+                        "link": "A1D6D670480ADD4EBCBF1275424F59C6ECF14586D58A6317384DC67D44414E88"
+                    }
+                ],
+                "branchHash": "9972697F09A9FAE758A0E0A5C36E99F98BC8DE98CC4D0682EAF925B1C1DE973F"
+            },
+            {
+                "type": 0,
+                "path": "",
+                "encodedPath": "00",
+                "nibbleCount": 0,
+                "linkMask": "FFFF",
+                "links": [
+                    {
+                        "bit": "0",
+                        "link": "4900ABA0DD43CF51F6AB43D599CC421CD71B989FE34D94D73856A6A9D936545B"
+                    },
+                    {
+                        "bit": "1",
+                        "link": "F0204617CC079842B5CA0C50D3CFBB5B80C3075A6B5B9DEC7D868630C44C8142"
+                    },
+                    {
+                        "bit": "2",
+                        "link": "05A359026AA3227CC54A7A9F0DD3B6A7329F6A51256EEDBCC5288CC70DA8B7DC"
+                    },
+                    {
+                        "bit": "3",
+                        "link": "69D18A468FFFB499EB63373768F0058447E0BB15F67BFF4C2F9968F63286B4E1"
+                    },
+                    {
+                        "bit": "4",
+                        "link": "FBB03A8AA5D1826E61AE2338771A1818B238DBD346ADC007D3D2C6A405E74E7E"
+                    },
+                    {
+                        "bit": "5",
+                        "link": "CDBEDFD7C08BCB7F6D206CE9CC7798F950E9E1AB78D8F88E69C25C06654B0371"
+                    },
+                    {
+                        "bit": "6",
+                        "link": "C461B7992B63A13EF3D416FDA40CD6BBEB75D0A8F032E439902798676B169B19"
+                    },
+                    {
+                        "bit": "7",
+                        "link": "582056F219579473DA76BDD440A6C74C864E3263F7679A8B01F0BA7BB7971B72"
+                    },
+                    {
+                        "bit": "8",
+                        "link": "3DF88BC6920E13697D02FAE179E96E314EA6CC4F8A67295CF1ABB888EA1A7094"
+                    },
+                    {
+                        "bit": "9",
+                        "link": "6B1A2EF28B6D74C9032F1ACBD009731AFEFDB2F8DDE5F9775CB76BA676112965"
+                    },
+                    {
+                        "bit": "A",
+                        "link": "6BB7C288425509112655924030B18C0F99FDE5ADB51E00139FF52BD1DC51B306"
+                    },
+                    {
+                        "bit": "B",
+                        "link": "2EAF2ACEC0DFA290E751CD708062BFED142140EDD476203546973A4349DD2CAE"
+                    },
+                    {
+                        "bit": "C",
+                        "link": "19CACFD89C947EB83E0083D7BBCEDAEA6B502B749511FCB0345761C7C08122DE"
+                    },
+                    {
+                        "bit": "D",
+                        "link": "A855B9AA5EA891925C17780925575A41D0712D2728779DCBE1C5B65F87D655AA"
+                    },
+                    {
+                        "bit": "E",
+                        "link": "270F74790664D81BC1D116C9C714D3E5834F78A1885FCA8BF9C3D59EB1526AD8"
+                    },
+                    {
+                        "bit": "F",
+                        "link": "E8D5476BE112A268EC7F39D6DF1FD127ED8C6A8D05530D25919C69E9DD04EAFD"
+                    }
+                ],
+                "branchHash": "601C52E55EAAB5301D74A27F0FA4587CF7DC25BFE6A06B6B8E0D775FF9B46A2C"
+            },
+            {
+                "type": 0,
+                "path": "",
+                "encodedPath": "00",
+                "nibbleCount": 0,
+                "linkMask": "FFFF",
+                "links": [
+                    {
+                        "bit": "0",
+                        "link": "8B3EDCF2DE6CB33EFA4B3DEA075023639B0EACF6276ED894B323C21D197CA06E"
+                    },
+                    {
+                        "bit": "1",
+                        "link": "22F5521A731A6A8814E5F56CF151BA576BEC49122E94B0290DF48CD946F5ACAB"
+                    },
+                    {
+                        "bit": "2",
+                        "link": "FCE5F77912083EDC2E513693994D39782A68B2273E7949199D96C7EE34BABE61"
+                    },
+                    {
+                        "bit": "3",
+                        "link": "1AD5A8C59431664D721819BCFA1353B74B87BFA4A3C9B868C04CB80735742463"
+                    },
+                    {
+                        "bit": "4",
+                        "link": "0DDFABCD6C781DF30B49A6707558BE954A8828EB6B1EE59DBE8F255CCE96C356"
+                    },
+                    {
+                        "bit": "5",
+                        "link": "F6113B7A150102CDA15310842824F6B4D9DDBEC001509E3EF9D9D20357ADE2D0"
+                    },
+                    {
+                        "bit": "6",
+                        "link": "96E6B36C9017F680759FB972792372FC9D48D151542E422485B4B3568F070E1A"
+                    },
+                    {
+                        "bit": "7",
+                        "link": "82F1E447E0D466EF56980F6F78EBD5333B073C8E516985CF1835AE666D3F8EA1"
+                    },
+                    {
+                        "bit": "8",
+                        "link": "A3B4317546B4AAA40234F176B4E540C957F085C43AC33DE3139ABDB92D3BA5A3"
+                    },
+                    {
+                        "bit": "9",
+                        "link": "730F137CCCD46559C3350C9F076F24E030DCFDF6BC226A35C0D8392E82BEF62F"
+                    },
+                    {
+                        "bit": "A",
+                        "link": "8B839513AD6227BD1B5D62DF38EF7AC9D3DA62D8B6FCE2C10B8E18D8DB6660A4"
+                    },
+                    {
+                        "bit": "B",
+                        "link": "8AEDACEBAE13E53E773B820268244D9839CB7695DFC29AFC42141C30B5472A08"
+                    },
+                    {
+                        "bit": "C",
+                        "link": "CCA233D09DB5986B8E21CA7B9A7A87CE43CE71DB266D279F048D6E707EC8C87F"
+                    },
+                    {
+                        "bit": "D",
+                        "link": "7960474585B1E6B96D61D6B52A1B850B6223463751D917099A64A7C05C498913"
+                    },
+                    {
+                        "bit": "E",
+                        "link": "2DDDD04876A8723938221B6654691B50B8C08D8A92AFD7AD76D65C5DDF80C3F0"
+                    },
+                    {
+                        "bit": "F",
+                        "link": "BE850A3D400CA21AB599FCA1A74120B66DBF744096A11281CC49028258F2CD15"
+                    }
+                ],
+                "branchHash": "C461B7992B63A13EF3D416FDA40CD6BBEB75D0A8F032E439902798676B169B19"
+            },
+            {
+                "type": 0,
+                "path": "",
+                "encodedPath": "00",
+                "nibbleCount": 0,
+                "linkMask": "DFF4",
+                "links": [
+                    {
+                        "bit": "2",
+                        "link": "513DB50C2C5D5ADFEE727C4DAB2FD15D67D445DACE0EE4A91D2316BB6B5184DB"
+                    },
+                    {
+                        "bit": "4",
+                        "link": "B6BFC203326047B79F350E8D397B7278B52B05B8061CBAE31A1E3E75EB374A11"
+                    },
+                    {
+                        "bit": "5",
+                        "link": "A196EDBEDD6025B5A1C91D07033067FD7C231954FFD68CA7845053F6E0DECDE9"
+                    },
+                    {
+                        "bit": "6",
+                        "link": "BE463563FE9855B88AC5EB5D4C648FCD0ACBF88FB470B4A156C6DF699469A7B0"
+                    },
+                    {
+                        "bit": "7",
+                        "link": "3879965782C68D7BAFD9A3A5318606AC7720633E05F16A74998C979CE7CF6F4D"
+                    },
+                    {
+                        "bit": "8",
+                        "link": "D92E9488B9A54EBF96760969B05E260B97E4FD0C4BCA87193ED88CC50C6A6610"
+                    },
+                    {
+                        "bit": "9",
+                        "link": "D5AD2127DD636D531F26609A6F0055BB5B607C978BF4E8C7E3515125A76A956B"
+                    },
+                    {
+                        "bit": "A",
+                        "link": "65DFF47A75A11595830C0B6E03E44DC3E869A57EFC51632350B4A999D69BB24E"
+                    },
+                    {
+                        "bit": "B",
+                        "link": "38E66E2F0B029AE498F6EE0DC22C4F2836AF9F0E02B7E4EDD94A13EF0451FDA5"
+                    },
+                    {
+                        "bit": "C",
+                        "link": "17F2795C8028161B541527BE46B12353CCADE3E01FCEF52C71FE5BC6AEDEA6B7"
+                    },
+                    {
+                        "bit": "E",
+                        "link": "E64C24870C17F255F96E19120929AF366C81ADCDFB585D9976F3F26C855EF71C"
+                    },
+                    {
+                        "bit": "F",
+                        "link": "AAC621E07225A53114FBDE5A4EA0C79860743C0122F25A26BAAD0638C697E5FD"
+                    }
+                ],
+                "branchHash": "96E6B36C9017F680759FB972792372FC9D48D151542E422485B4B3568F070E1A"
+            },
+            {
+                "type": 255,
+                "path": "0F84DD2830B37539EF766DD37A0DA6150FB8E14AEE2ED2773262F4AF14CF",
+                "encodedPath": "200F84DD2830B37539EF766DD37A0DA6150FB8E14AEE2ED2773262F4AF14CF",
+                "nibbleCount": 60,
+                "value": "39B9DF440E50AF995D7E8DD94FA38BF68033CC39053B8C9FA1BFC2AA25C99F91",
+                "leafHash": "A196EDBEDD6025B5A1C91D07033067FD7C231954FFD68CA7845053F6E0DECDE9"
+            }
+        ]
+    };
+    const aliceStateHashSample = '39B9DF440E50AF995D7E8DD94FA38BF68033CC39053B8C9FA1BFC2AA25C99F91';
+    const alicePathHashSample = '46650F84DD2830B37539EF766DD37A0DA6150FB8E14AEE2ED2773262F4AF14CF';
+    const rootHashSample = '9972697F09A9FAE758A0E0A5C36E99F98BC8DE98CC4D0682EAF925B1C1DE973F';
+
     // 検証
-    checkState(stateProof, aliceStateHash, alicePathHash, rootHash);
+    checkState(stateProofSample, aliceStateHashSample, alicePathHashSample, rootHashSample);
   </script>
 </body>
 </html>
