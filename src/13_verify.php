@@ -372,9 +372,17 @@ $accountInfoBytesString = implode('', array_map('chr', $accountInfoBytes));
 hash_update($hasher, $accountInfoBytesString);
 $aliceStateHash = strtoupper(bin2hex(hash_final($hasher, true)));
 
-var_dump($aliceStateHash);
+// var_dump($aliceStateHash);
 
-require_once(__DIR__ . '/13_sample_data.php');
-checkState($stateProofSample, $stateHashSample, $pathHashSample, $rootHashSample);
+// require_once(__DIR__ . '/13_sample_data.php');
+// checkState($stateProofSample, $stateHashSample, $pathHashSample, $rootHashSample);
 
+//サービス提供者以外のノードから最新のブロックヘッダー情報を取得
+$blockInfo = $blockApiInstance->searchBlocks(order: 'desc');
+$rootHash = $blockInfo['data'][0]['meta']['state_hash_sub_cache_merkle_roots'][0];
 
+//サービス提供者を含む任意のノードからマークル情報を取得
+$stateProof = $accountApiInstance->getAccountInfoMerkle($aliceRawAddress);
+
+//検証
+checkState($stateProof, $aliceStateHash, $alicePathHash, $rootHash);

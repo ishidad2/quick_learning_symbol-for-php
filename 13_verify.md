@@ -509,140 +509,196 @@ bool(true)
 
 ### 検証用共通関数
 
-```js
+```php
+ //検証用共通関数
+
+function reverseHex($number, $bytes = 1) {
+  // 10進数を16進数に変換し、必要に応じてゼロパディング
+  $hex = str_pad(dechex($number), $bytes * 2, "0", STR_PAD_LEFT);
+  // 16進数の文字列をバイナリデータに変換
+  $bin = hex2bin($hex);
+  // バイナリデータを逆順にする
+  $reversed = strrev($bin);
+  // バイナリデータを16進数の文字列に変換
+  $reversedHex = bin2hex($reversed);
+  return $reversedHex;
+}
+
 //葉のハッシュ値取得関数
-function getLeafHash(encodedPath, leafValue){
-    const hasher = sha3_256.create();
-    return hasher.update(sym.Convert.hexToUint8(encodedPath + leafValue)).hex().toUpperCase();
+function getLeafHash($encodedPath, $leafValue) {
+  $hasher = hash_init('sha3-256');
+  hash_update($hasher, hex2bin($encodedPath . $leafValue));
+  $hash = strtoupper(bin2hex(hash_final($hasher, true)));
+  return $hash;
 }
 
-//枝のハッシュ値取得関数
-function getBranchHash(encodedPath, links){
-    const branchLinks = Array(16).fill(sym.Convert.uint8ToHex(new Uint8Array(32)));
-    links.forEach((link) => {
-        branchLinks[parseInt(`0x${link.bit}`, 16)] = link.link;
+// 枝のハッシュ値取得関数
+function getBranchHash($encodedPath, $links) {
+  $branchLinks = array_fill(0, 16, bin2hex(str_repeat(chr(0), 32)));
+  foreach ($links as $link) {
+      $index = hexdec($link['bit']);
+      $branchLinks[$index] = $link['link'];
+  }
+  $concatenated = $encodedPath . implode("", $branchLinks);
+  $hasher = hash_init('sha3-256');
+  hash_update($hasher, hex2bin($concatenated));
+
+  return strtoupper(bin2hex(hash_final($hasher, true)));
+}
+
+// ワールドステートの検証
+
+function checkState($stateProof, $stateHash, $pathHash, $rootHash) {
+  $merkleLeaf = null;
+  $merkleBranches = [];
+  foreach($stateProof['tree'] as $n){
+    if($n['type'] === 255){
+      $merkleLeaf = $n;
+    } else {
+      $merkleBranches[] = $n;
+    }
+  }
+  $merkleBranches = array_reverse($merkleBranches);
+  $leafHash = getLeafHash($merkleLeaf['encoded_path'], $stateHash);
+
+  $linkHash = $leafHash;  // リンクハッシュの初期値は葉ハッシュ
+  $bit = "";
+  for($i=0; $i <  count($merkleBranches); $i++){
+    $branch = $merkleBranches[$i];
+    $branchLink = array_filter($branch['links'], function($link) use ($linkHash) {
+      return $link['link'] === $linkHash;
     });
-    const hasher = sha3_256.create();
-    const bHash = hasher.update(sym.Convert.hexToUint8(encodedPath + branchLinks.join(''))).hex().toUpperCase();
-    return bHash;
-}
-
-//ワールドステートの検証
-function checkState(stateProof,stateHash,pathHash,rootHash){
-
-  const merkleLeaf = stateProof.merkleTree.leaf;
-  const merkleBranches = stateProof.merkleTree.branches.reverse();
-  const leafHash = getLeafHash(merkleLeaf.encodedPath,stateHash);
-
-  let linkHash = leafHash; //最初のlinkHashはleafHash
-  let bit="";
-  for(let i = 0; i < merkleBranches.length; i++){
-      const branch = merkleBranches[i];
-      const branchLink = branch.links.find(x=>x.link === linkHash)
-      linkHash = getBranchHash(branch.encodedPath,branch.links);
-      bit = merkleBranches[i].path.slice(0,merkleBranches[i].nibbleCount) + branchLink.bit + bit ;
+    $branchLink = reset($branchLink); // 最初の要素を取得
+    $linkHash = getBranchHash($branch['encoded_path'], $branch['links']);
+    $bit = substr($merkleBranches[$i]['path'], 0, $merkleBranches[$i]['nibble_count']) . $branchLink['bit'] . $bit;
+  }
+  $treeRootHash = $linkHash; //最後のlinkHashはrootHash
+  $treePathHash = $bit . $merkleLeaf['path'];
+  if(strlen($treePathHash) % 2 == 1){
+    $treePathHash = substr($treePathHash, 0, -1);
   }
 
-  const treeRootHash = linkHash; //最後のlinkHashはrootHash
-  let treePathHash = bit + merkleLeaf.path;
+  // 検証
+  var_dump($treeRootHash === $rootHash);
+  var_dump($treePathHash === $pathHash);
 
-  if(treePathHash.length % 2 == 1){
-    treePathHash = treePathHash.slice( 0, -1 );
-  }
- 
-  //検証
-  console.log(treeRootHash === rootHash);
-  console.log(treePathHash === pathHash);
 }
-```
 
+function hexToUint8($hex) {
+  // 16進数文字列をバイナリデータに変換
+  $binary = hex2bin($hex);
+  // バイナリデータを配列に変換
+  return array_values(unpack('C*', $binary));
+}
 
-### 13.3.1 アカウント情報の検証
+$aliceRawAddress = "TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ";
+$aliceAddress = new Address($aliceRawAddress);
 
-アカウント情報を葉として、
-マークルツリー上の分岐する枝をアドレスでたどり、
-ルートに到着できるかを確認します。
+$hasher = hash_init('sha3-256');
+$alicePathHash = hash_update($hasher, hex2bin($aliceAddress));
+$alicePathHash = strtoupper(bin2hex(hash_final($hasher, true)));
 
-```js
-stateProofService = new sym.StateProofService(repo);
+$hasher = hash_init('sha3-256');
+$accountApiInstance = new AccountRoutesApi($client, $config);
+$aliceInfo = $accountApiInstance->getAccountInfo($aliceRawAddress);
+$aliceInfo = $aliceInfo["account"];
 
-aliceAddress = sym.Address.createFromRawAddress("TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ");
+// アカウント情報から StateHash を導出
+$format = (int)$aliceInfo['importance'] === 0 || strlen($aliceInfo['activity_buckets']) <5 ? 0x00 : 0x01;
 
-hasher = sha3_256.create();
-alicePathHash = hasher.update(
-  sym.RawAddress.stringToAddress(aliceAddress.plain())
-).hex().toUpperCase();
+$supplementalPublicKeysMask = 0x00;
+$linkedPublicKey = [];
+if($aliceInfo['supplemental_public_keys']['linked'] !== null){
+  $supplementalPublicKeysMask |= 0x01;  // OR 演算子と代入演算子を組み合わせ
+  $linkedPublicKey = hexToUint8($aliceInfo['supplemental_public_keys']['linked']['public_key']);
+}
 
-hasher = sha3_256.create();
-aliceInfo = await accountRepo.getAccountInfo(aliceAddress).toPromise();
-aliceStateHash = hasher.update(aliceInfo.serialize()).hex().toUpperCase();
+$nodePublicKey = [];
+if($aliceInfo['supplemental_public_keys']['node'] !== null){
+  $supplementalPublicKeysMask |= 0x02;
+  $nodePublicKey = hexToUint8($aliceInfo['supplemental_public_keys']['node']['public_key']);
+}
+
+$vrfPublicKey = [];
+if($aliceInfo['supplemental_public_keys']['vrf'] !== null){
+  $supplementalPublicKeysMask |= 0x04;
+  $vrfPublicKey = hexToUint8($aliceInfo['supplemental_public_keys']['vrf']['public_key']);
+}
+
+$votingPublicKeys = [];
+if($aliceInfo['supplemental_public_keys']['voting'] !== null){
+  foreach($aliceInfo['supplemental_public_keys']['voting']['public_key'] as $key){
+    $votingPublicKeys = array_merge($votingPublicKeys, hexToUint8($key['public_key']));
+  }
+}
+
+$importanceSnapshots = [];
+if((int)$aliceInfo['importance'] !== 0){
+  $importanceSnapshots = array_merge(
+    hexToUint8(reverseHex($aliceInfo['importance_snapshot'], 8)),
+    hexToUint8(reverseHex($aliceInfo['importance_snapshot_height'], 8))
+  );
+}
+
+$activityBuckets = [];
+if((int)$aliceInfo['importance'] > 0){
+  for ($idx = 0; $idx < count($aliceInfo['activity_buckets']) || $idx < 5; $idx++) {
+    $bucket = $aliceInfo['activity_buckets'][$idx];
+    $activityBuckets = array_merge(
+      $activityBuckets,
+      hexToUint8(reverseHex($bucket['start_height'], 8)),
+      hexToUint8(reverseHex($bucket['total_fees_paid'], 8)),
+      hexToUint8(reverseHex($bucket['beneficiary_count'], 4)),
+      hexToUint8(reverseHex($bucket['raw_score'], 8))
+    );
+  }
+}
+
+$balances = [];
+if(count($aliceInfo['mosaics']) > 0){
+  foreach($aliceInfo['mosaics'] as $mosaic){
+    $balances = array_merge(
+      $balances,
+      hexToUint8(bin2hex(strrev(hex2bin($mosaic['id'])))),
+      hexToUint8(reverseHex($mosaic['amount'], 8))
+    );
+  }
+}
+
+$accountInfoBytes = array_merge(
+  hexToUint8(reverseHex($aliceInfo['version'], 2)),
+  hexToUint8($aliceInfo['address']),
+  hexToUint8(reverseHex($aliceInfo['address_height'], 8)),
+  hexToUint8($aliceInfo['public_key']),
+  hexToUint8(reverseHex($aliceInfo['public_key_height'], 8)),
+  hexToUint8(reverseHex($aliceInfo['account_type'], 1)),
+  hexToUint8(reverseHex($format, 1)),
+  hexToUint8(reverseHex($supplementalPublicKeysMask, 1)),
+  hexToUint8(reverseHex(count($votingPublicKeys), 1)),
+  $linkedPublicKey,
+  $nodePublicKey,
+  $vrfPublicKey,
+  $votingPublicKeys,
+  $importanceSnapshots,
+  $activityBuckets,
+  hexToUint8(reverseHex(count($aliceInfo['mosaics']), 2)),
+  $balances,
+);
+
+$accountInfoBytesString = implode('', array_map('chr', $accountInfoBytes));
+
+hash_update($hasher, $accountInfoBytesString);
+$aliceStateHash = strtoupper(bin2hex(hash_final($hasher, true)));
 
 //サービス提供者以外のノードから最新のブロックヘッダー情報を取得
-blockInfo = await blockRepo.search({order:"desc"}).toPromise();
-rootHash = blockInfo.data[0].stateHashSubCacheMerkleRoots[0];
+$blockInfo = $blockApiInstance->searchBlocks(order: 'desc');
+$rootHash = $blockInfo['data'][0]['meta']['state_hash_sub_cache_merkle_roots'][0];
 
 //サービス提供者を含む任意のノードからマークル情報を取得
-stateProof = await stateProofService.accountById(aliceAddress).toPromise();
+$stateProof = $accountApiInstance->getAccountInfoMerkle($aliceRawAddress);
 
 //検証
-checkState(stateProof,aliceStateHash,alicePathHash,rootHash);
-```
-
-
-### 13.3.2 モザイクへ登録したメタデータの検証
-
-モザイクに登録したメタデータValue値を葉として、
-マークルツリー上の分岐する枝をメタデータキーで構成されるハッシュ値でたどり、
-ルートに到着できるかを確認します。
-
-```js
-srcAddress = Buffer.from(
-    sym.Address.createFromRawAddress("TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ").encoded(),
-    'hex'
-)
-
-targetAddress = Buffer.from(
-    sym.Address.createFromRawAddress("TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ").encoded(),
-    'hex'
-)
-
-hasher = sha3_256.create();    
-hasher.update(srcAddress);
-hasher.update(targetAddress);
-hasher.update(sym.Convert.hexToUint8Reverse("CF217E116AA422E2")); // scopeKey
-hasher.update(sym.Convert.hexToUint8Reverse("1275B0B7511D9161")); // targetId
-hasher.update(Uint8Array.from([sym.MetadataType.Mosaic])); // type: Mosaic 1
-compositeHash = hasher.hex();
-
-hasher = sha3_256.create();   
-hasher.update( Buffer.from(compositeHash,'hex'));
-
-pathHash = hasher.hex().toUpperCase();
-
-//stateHash(Value値)
-hasher = sha3_256.create(); 
-hasher.update(cat.GeneratorUtils.uintToBuffer(1, 2)); //version
-hasher.update(srcAddress);
-hasher.update(targetAddress);
-hasher.update(sym.Convert.hexToUint8Reverse("CF217E116AA422E2")); // scopeKey
-hasher.update(sym.Convert.hexToUint8Reverse("1275B0B7511D9161")); // targetId
-hasher.update(Uint8Array.from([sym.MetadataType.Mosaic])); //mosaic
-
-value = Buffer.from("test");
-
-hasher.update(cat.GeneratorUtils.uintToBuffer(value.length, 2)); 
-hasher.update(value); 
-stateHash = hasher.hex();
-
-//サービス提供者以外のノードから最新のブロックヘッダー情報を取得
-blockInfo = await blockRepo.search({order:"desc"}).toPromise();
-rootHash = blockInfo.data[0].stateHashSubCacheMerkleRoots[8];
-
-//サービス提供者を含む任意のノードからマークル情報を取得
-stateProof = await stateProofService.metadataById(compositeHash).toPromise();
-
-//検証
-checkState(stateProof,stateHash,pathHash,rootHash);
+checkState($stateProof, $aliceStateHash, $alicePathHash, $rootHash);
 ```
 
 ### 13.3.3 アカウントへ登録したメタデータの検証
