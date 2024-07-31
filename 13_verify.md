@@ -594,6 +594,8 @@ function hexToUint8($hex) {
 
 ## 13.3.1 アカウント情報の検証
 
+アカウント情報を葉として、マークルツリー上の分岐する枝をアドレスでたどり、ルートに到着できるかを確認します。
+
 ```php
 $aliceRawAddress = "TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ";
 $aliceAddress = new Address($aliceRawAddress);
