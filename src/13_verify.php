@@ -1,4 +1,6 @@
 <?php
+use SymbolRestClient\Api\MetadataRoutesApi;
+use SymbolSdk\Symbol\Models\MosaicId;
 require_once(__DIR__ . '/util.php');
 use SymbolRestClient\Api\AccountRoutesApi;
 use SymbolSdk\Merkle\MerkleHashBuilder;
@@ -8,7 +10,9 @@ use SymbolSdk\CryptoTypes\Signature;
 use SymbolSdk\Symbol\Models\Hash256;
 use SymbolSdk\Symbol\Models\TransactionFactory;
 use SymbolRestClient\Configuration;
+use SymbolSdk\CryptoTypes\PrivateKey;
 use SymbolSdk\Merkle\Merkle;
+use SymbolSdk\Symbol\Metadata;
 use SymbolSdk\Symbol\Models\Address;
 use SymbolSdk\Symbol\Models\BlockType;
 
@@ -176,9 +180,9 @@ $hash = strtoupper(bin2hex(hash_final($hasher, true)));
 
  //検証用共通関数
 
-function reverseHex($number, $bytes = 1) {
+function reverseHex($hex, $bytes = 1) {
   // 10進数を16進数に変換し、必要に応じてゼロパディング
-  $hex = str_pad(dechex($number), $bytes * 2, "0", STR_PAD_LEFT);
+  $hex = str_pad(dechex($hex), $bytes * 2, "0", STR_PAD_LEFT);
   // 16進数の文字列をバイナリデータに変換
   $bin = hex2bin($hex);
   // バイナリデータを逆順にする
@@ -271,6 +275,10 @@ function hexToUint8($hex) {
   // バイナリデータを配列に変換
   return array_values(unpack('C*', $binary));
 }
+
+/**
+ * アカウント情報の検証
+ */
 
 $aliceRawAddress = "TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ";
 $aliceAddress = new Address($aliceRawAddress);
@@ -386,3 +394,119 @@ $stateProof = $accountApiInstance->getAccountInfoMerkle($aliceRawAddress);
 
 //検証
 checkState($stateProof, $aliceStateHash, $alicePathHash, $rootHash);
+
+/**
+ * モザイクへ登録したメタデータの検証
+ */
+$srcAddress = new Address('TDSSDPIPAJHVRZTQUAR36OQU6O7MV4BIAOLL5UA');
+$targetAddress = new Address('TDSSDPIPAJHVRZTQUAR36OQU6O7MV4BIAOLL5UA');
+
+$scopeKey = Metadata::metadataGenerateKey('key_mosaic'); //メタデータキー
+$scopeKey = strtoupper(dechex($scopeKey));
+$targetId = '6FA40B0B8B9E392F'  ; //モザイクID
+
+$hasher = hash_init('sha3-256');
+hash_update($hasher, $srcAddress->binaryData);
+hash_update($hasher, $targetAddress->binaryData);
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($scopeKey))));
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($targetId))));
+hash_update($hasher, chr(1));
+
+$compositeHash = hash_final($hasher, true);
+
+$hasher = hash_init('sha3-256');
+hash_update($hasher, $compositeHash);
+$pathHash1 = strtoupper(bin2hex(hash_final($hasher, true)));
+
+// echo "Path Hash 1: " . $pathHash1 . PHP_EOL;
+
+//stateHash(Value値)
+$hasher = hash_init('sha3-256');
+$version = 1;
+hash_update($hasher, pack('C*', ...hexToUint8(reverseHex($version, 2)))); //version
+hash_update($hasher, $srcAddress->binaryData);
+hash_update($hasher, $targetAddress->binaryData);
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($scopeKey))));
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($targetId))));
+hash_update($hasher, chr(1));
+
+$value = "test";
+$length = strlen($value);
+$hexLength = dechex($length);
+$paddedHex = str_pad($hexLength, 4, "0", STR_PAD_LEFT);
+
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($paddedHex))));
+hash_update($hasher, $value);
+
+$stateHash1 = strtoupper(bin2hex(hash_final($hasher, true)));
+// echo "State Hash 1: " . $stateHash . PHP_EOL;
+
+//サービス提供者以外のノードから最新のブロックヘッダー情報を取得
+$blockInfo = $blockApiInstance->searchBlocks(order: 'desc');
+$rootHash1 = $blockInfo['data'][0]['meta']['state_hash_sub_cache_merkle_roots'][8];
+
+//サービス提供者を含む任意のノードからマークル情報を取得
+$metadataApiInstance = new MetadataRoutesApi($client, $config);
+$stateProof1 = $metadataApiInstance->getMetadataMerkle(bin2hex($compositeHash));
+
+//検証
+
+// checkState($stateProof1, $stateHash1, $pathHash1, $rootHash1);
+
+/**
+ * アカウントへ登録したメタデータの検証
+ */
+$srcAddress = new Address('TDNH6IMNTNWAYRM7MXBFNGNGZRCFOQY5MSPTZUI');
+$targetAddress = new Address('TDNH6IMNTNWAYRM7MXBFNGNGZRCFOQY5MSPTZUI');
+
+//compositePathHash(Key値)
+$scopeKey = Metadata::metadataGenerateKey('key_account'); //メタデータキー
+$scopeKey = strtoupper(dechex($scopeKey));
+$targetId = '0000000000000000';
+
+$hasher = hash_init('sha3-256');
+hash_update($hasher, $srcAddress->binaryData);
+hash_update($hasher, $targetAddress->binaryData);
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($scopeKey))));
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($targetId))));
+hash_update($hasher, chr(0)); // account
+
+$compositeHash = hash_final($hasher, true);
+
+$hasher = hash_init('sha3-256');
+hash_update($hasher, $compositeHash);
+$pathHash2 = strtoupper(bin2hex(hash_final($hasher, true)));
+
+// echo "Path Hash 1: " . $pathHash1 . PHP_EOL;
+
+//stateHash(Value値)
+$hasher = hash_init('sha3-256');
+$version = 1;
+hash_update($hasher, pack('C*', ...hexToUint8(reverseHex($version, 2)))); //version
+hash_update($hasher, $srcAddress->binaryData);
+hash_update($hasher, $targetAddress->binaryData);
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($scopeKey))));
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($targetId))));
+hash_update($hasher, chr(0)); // account
+
+$value = "test";
+$length = strlen($value);
+$hexLength = dechex($length);
+$paddedHex = str_pad($hexLength, 4, "0", STR_PAD_LEFT);
+
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($paddedHex))));
+hash_update($hasher, $value);
+
+$stateHash2 = strtoupper(bin2hex(hash_final($hasher, true)));
+
+//サービス提供者以外のノードから最新のブロックヘッダー情報を取得
+$blockInfo = $blockApiInstance->searchBlocks(order: 'desc');
+$rootHash2 = $blockInfo['data'][0]['meta']['state_hash_sub_cache_merkle_roots'][8];
+
+//サービス提供者を含む任意のノードからマークル情報を取得
+$metadataApiInstance = new MetadataRoutesApi($client, $config);
+$stateProof2 = $metadataApiInstance->getMetadataMerkle(bin2hex($compositeHash));
+
+//検証
+
+checkState($stateProof2, $stateHash2, $pathHash2, $rootHash2);

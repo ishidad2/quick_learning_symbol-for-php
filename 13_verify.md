@@ -711,80 +711,59 @@ checkState($stateProof, $aliceStateHash, $alicePathHash, $rootHash);
 
 モザイクに登録したメタデータValue値を葉として、マークルツリー上の分岐する枝をメタデータキーで構成されるハッシュ値でたどり、 ルートに到着できるかを確認します。
 
-```js
-srcAddress = new symbolSdk.symbol.Address(
-  "TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ",
-).bytes;
+```php
+$srcAddress = new Address('TDSSDPIPAJHVRZTQUAR36OQU6O7MV4BIAOLL5UA');
+$targetAddress = new Address('TDSSDPIPAJHVRZTQUAR36OQU6O7MV4BIAOLL5UA');
 
-targetAddress = new symbolSdk.symbol.Address(
-  "TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ",
-).bytes;
+$scopeKey = Metadata::metadataGenerateKey('key_mosaic'); //メタデータキー
+$scopeKey = strtoupper(dechex($scopeKey));
+$targetId = '6FA40B0B8B9E392F'  ; //モザイクID
 
-hasher = sha3_256.create();
-hasher.update(srcAddress);
-hasher.update(targetAddress);
-hasher.update(symbolSdk.utils.hexToUint8("CF217E116AA422E2").reverse()); // scopeKey
-hasher.update(symbolSdk.utils.hexToUint8("1275B0B7511D9161").reverse()); // targetId
-hasher.update(Uint8Array.from([1])); // type: Mosaic 1
-compositeHash = hasher.digest();
+$hasher = hash_init('sha3-256');
+hash_update($hasher, $srcAddress->binaryData);
+hash_update($hasher, $targetAddress->binaryData);
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($scopeKey))));
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($targetId))));
+hash_update($hasher, chr(1));
 
-hasher = sha3_256.create();
-hasher.update(compositeHash);
+$compositeHash = hash_final($hasher, true);
 
-pathHash = symbolSdk.utils.uint8ToHex(hasher.digest());
+$hasher = hash_init('sha3-256');
+hash_update($hasher, $compositeHash);
+$pathHash1 = strtoupper(bin2hex(hash_final($hasher, true)));
 
 //stateHash(Value値)
-hasher = sha3_256.create();
-version = 1;
-hasher.update(
-  Buffer.from(version.toString(16).padStart(2 * 2, "0"), "hex").reverse(),
-); //version
-hasher.update(srcAddress);
-hasher.update(targetAddress);
-hasher.update(symbolSdk.utils.hexToUint8("CF217E116AA422E2").reverse()); // scopeKey
-hasher.update(symbolSdk.utils.hexToUint8("1275B0B7511D9161").reverse()); // targetId
-hasher.update(Uint8Array.from([1])); //mosaic
+$hasher = hash_init('sha3-256');
+$version = 1;
+hash_update($hasher, pack('C*', ...hexToUint8(reverseHex($version, 2)))); //version
+hash_update($hasher, $srcAddress->binaryData);
+hash_update($hasher, $targetAddress->binaryData);
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($scopeKey))));
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($targetId))));
+hash_update($hasher, chr(1));
 
-value = Buffer.from("test");
+// 処理対象の文字列
+$value = "test";
+$length = strlen($value);
+$hexLength = dechex($length);
+$paddedHex = str_pad($hexLength, 4, "0", STR_PAD_LEFT);
 
-hasher.update(
-  Buffer.from(value.length.toString(16).padStart(2 * 2, "0"), "hex").reverse(),
-);
-hasher.update(value);
-stateHash = symbolSdk.utils.uint8ToHex(hasher.digest());
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($paddedHex))));
+hash_update($hasher, $value);
+
+$stateHash1 = strtoupper(bin2hex(hash_final($hasher, true)));
 
 //サービス提供者以外のノードから最新のブロックヘッダー情報を取得
-query = new URLSearchParams({
-  order: "desc",
-});
-blockInfo = await fetch(new URL("/blocks?" + query.toString(), NODE), {
-  method: "GET",
-  headers: { "Content-Type": "application/json" },
-})
-  .then((res) => res.json())
-  .then((json) => {
-    return json;
-  });
-rootHash = blockInfo.data[0].meta.stateHashSubCacheMerkleRoots[8];
+$blockInfo = $blockApiInstance->searchBlocks(order: 'desc');
+$rootHash1 = $blockInfo['data'][0]['meta']['state_hash_sub_cache_merkle_roots'][8];
 
 //サービス提供者を含む任意のノードからマークル情報を取得
-stateProof = await fetch(
-  new URL(
-    "/metadata/" + symbolSdk.utils.uint8ToHex(compositeHash) + "/merkle",
-    NODE,
-  ),
-  {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-  },
-)
-  .then((res) => res.json())
-  .then((json) => {
-    return json;
-  });
+$metadataApiInstance = new MetadataRoutesApi($client, $config);
+$stateProof1 = $metadataApiInstance->getMetadataMerkle(bin2hex($compositeHash));
 
 //検証
-checkState(stateProof, stateHash, pathHash, rootHash);
+
+checkState($stateProof1, $stateHash1, $pathHash1, $rootHash1);
 ```
 
 ### 13.3.3 アカウントへ登録したメタデータの検証
@@ -793,53 +772,59 @@ checkState(stateProof, stateHash, pathHash, rootHash);
 マークルツリー上の分岐する枝をメタデータキーで構成されるハッシュ値でたどり、
 ルートに到着できるかを確認します。
 
-```js
-srcAddress = Buffer.from(
-    sym.Address.createFromRawAddress("TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ").encoded(),
-    'hex'
-)
-
-targetAddress = Buffer.from(
-    sym.Address.createFromRawAddress("TBIL6D6RURP45YQRWV6Q7YVWIIPLQGLZQFHWFEQ").encoded(),
-    'hex'
-)
+```php
+$srcAddress = new Address('TDNH6IMNTNWAYRM7MXBFNGNGZRCFOQY5MSPTZUI');
+$targetAddress = new Address('TDNH6IMNTNWAYRM7MXBFNGNGZRCFOQY5MSPTZUI');
 
 //compositePathHash(Key値)
-hasher = sha3_256.create();    
-hasher.update(srcAddress);
-hasher.update(targetAddress);
-hasher.update(sym.Convert.hexToUint8Reverse("9772B71B058127D7")); // scopeKey
-hasher.update(sym.Convert.hexToUint8Reverse("0000000000000000")); // targetId
-hasher.update(Uint8Array.from([sym.MetadataType.Account])); // type: Account 0
-compositeHash = hasher.hex();
+$scopeKey = Metadata::metadataGenerateKey('key_account'); //メタデータキー
+$scopeKey = strtoupper(dechex($scopeKey));
+$targetId = '0000000000000000';
 
-hasher = sha3_256.create();   
-hasher.update( Buffer.from(compositeHash,'hex'));
+$hasher = hash_init('sha3-256');
+hash_update($hasher, $srcAddress->binaryData);
+hash_update($hasher, $targetAddress->binaryData);
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($scopeKey))));
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($targetId))));
+hash_update($hasher, chr(0)); // account
 
-pathHash = hasher.hex().toUpperCase();
+$compositeHash = hash_final($hasher, true);
+
+$hasher = hash_init('sha3-256');
+hash_update($hasher, $compositeHash);
+$pathHash2 = strtoupper(bin2hex(hash_final($hasher, true)));
 
 //stateHash(Value値)
-hasher = sha3_256.create(); 
-hasher.update(cat.GeneratorUtils.uintToBuffer(1, 2)); //version
-hasher.update(srcAddress);
-hasher.update(targetAddress);
-hasher.update(sym.Convert.hexToUint8Reverse("9772B71B058127D7")); // scopeKey
-hasher.update(sym.Convert.hexToUint8Reverse("0000000000000000")); // targetId
-hasher.update(Uint8Array.from([sym.MetadataType.Account])); //account
-value = Buffer.from("test");
-hasher.update(cat.GeneratorUtils.uintToBuffer(value.length, 2)); 
-hasher.update(value); 
-stateHash = hasher.hex();
+$hasher = hash_init('sha3-256');
+$version = 1;
+hash_update($hasher, pack('C*', ...hexToUint8(reverseHex($version, 2)))); //version
+hash_update($hasher, $srcAddress->binaryData);
+hash_update($hasher, $targetAddress->binaryData);
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($scopeKey))));
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($targetId))));
+hash_update($hasher, chr(0)); // account
+
+$value = "test";
+$length = strlen($value);
+$hexLength = dechex($length);
+$paddedHex = str_pad($hexLength, 4, "0", STR_PAD_LEFT);
+
+hash_update($hasher, pack('C*', ...array_reverse(hexToUint8($paddedHex))));
+hash_update($hasher, $value);
+
+$stateHash2 = strtoupper(bin2hex(hash_final($hasher, true)));
 
 //サービス提供者以外のノードから最新のブロックヘッダー情報を取得
-blockInfo = await blockRepo.search({order:"desc"}).toPromise();
-rootHash = blockInfo.data[0].stateHashSubCacheMerkleRoots[8];
+$blockInfo = $blockApiInstance->searchBlocks(order: 'desc');
+$rootHash2 = $blockInfo['data'][0]['meta']['state_hash_sub_cache_merkle_roots'][8];
 
 //サービス提供者を含む任意のノードからマークル情報を取得
-stateProof = await stateProofService.metadataById(compositeHash).toPromise();
+$metadataApiInstance = new MetadataRoutesApi($client, $config);
+$stateProof2 = $metadataApiInstance->getMetadataMerkle(bin2hex($compositeHash));
 
 //検証
-checkState(stateProof,stateHash,pathHash,rootHash);
+
+checkState($stateProof2, $stateHash2, $pathHash2, $rootHash2);
 ```
 
 ## 13.4 現場で使えるヒント
