@@ -5,7 +5,17 @@
 ## 2.1 使用言語
 
 PHPを使用します。
-諸事情により環境はLaravel10を使用しています。
+srcフォルダ以下にDocker環境がありますので必要に応じて使用してください。
+
+### 混同のDocker環境を使用する場合
+
+```bash
+cd src
+# コンテナ起動
+docker compose up or make up
+# コンテナ内に接続
+docker compose exec app or make exec-app
+```
 
 ### SDK
 
@@ -19,10 +29,11 @@ composerを使ってパッケージを取得します。
 
 ## 2.2 サンプルソースコード
 
+src以下にPHPのサンプルコードを配置しています。
 
 ### 出力値確認
 
-ログの出力方法はLaravelの出力に沿っているので適時読み替えてください。
+var_dupmまたはechoを使用しています。
 
 ### アカウント
 #### Alice
