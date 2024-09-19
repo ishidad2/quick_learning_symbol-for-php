@@ -59,7 +59,7 @@ echo substr($alicePublicAccount->publicKey, 2, 66) . PHP_EOL;
 $aliceAddress = new Address($strAliceAddress);
 
 echo "\n===アドレスクラスの生成===" . PHP_EOL;
-var_dump($aliceAddress);
+echo $aliceAddress->__tostring() . PHP_EOL;
 
 /**
  * 所有モザイク一覧の取得

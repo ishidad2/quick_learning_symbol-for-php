@@ -160,15 +160,12 @@ EA648F781721F5094D77149886F18F6B2C2F621B2A3FB8CFA1E382B9E011DFF3
 ### アドレスクラスの生成
 ```php
 $aliceAddress = new Address('TDNX2EJJKC3C4QOGURQZLQS6KJLQACTGWYZFKTQ');
-var_dump($aliceAddress);
+echo $aliceAddress->__tostring() . PHP_EOL;
+
 ```
 ###### 出力例
 ```php
-object(SymbolSdk\Symbol\Address)#29 (1) {
-  ["binaryData"]=>
-  string(24) "��})P�.AƤa��^RW
-f�2UN"
-}
+TDSSDPIPAJHVRZTQUAR36OQU6O7MV4BIAOLL5UA
 ```
 
 ## 3.2 アカウントへの送信

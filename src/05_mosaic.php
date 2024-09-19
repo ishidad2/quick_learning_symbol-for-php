@@ -44,6 +44,13 @@ $f += MosaicFlags::REVOKABLE; //発行者からの還収可否
 $flags = new MosaicFlags($f);
 
 $mosaicId = IdGenerator::generateMosaicId($aliceKey->address);
+var_dump($mosaicId);
+// 桁数のチェック（15桁なら先頭に0を付ける）
+$hexMosaicId = strtoupper(dechex($mosaicId['id']));
+if (strlen($hexMosaicId) === 15) {
+    $hexMosaicId = '0' . $hexMosaicId;
+}
+echo $hexMosaicId . PHP_EOL;
 
 // モザイク定義
 $mosaicDefTx = new EmbeddedMosaicDefinitionTransactionV1(
@@ -115,6 +122,8 @@ try {
 } catch (Exception $e) {
   echo 'Exception when calling TransactionRoutesApi->announceTransaction: ', $e->getMessage(), PHP_EOL;
 }
+
+return
 
 /**
  * 確認
